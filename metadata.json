@@ -1,0 +1,8 @@
+{
+  "name": "AudioMax",
+  "description": "AudioMax transforms spoken audio into organized, actionable, and universally understood meeting minutes. Leveraging advanced AI, it provides transcription, speaker identification, summarization, and translation.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "prompt": ""
+}
