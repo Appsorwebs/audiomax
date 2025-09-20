@@ -50,6 +50,7 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
   const audioChunksRef = useRef<Blob[]>([]);
   const timerIntervalRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const recordingStartTimeRef = useRef<number | null>(null);
 
   // Check microphone permission status
   useEffect(() => {
@@ -92,6 +93,15 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
     
     // Clear MediaRecorder reference
     mediaRecorderRef.current = null;
+    
+    // Clear recording start time
+    recordingStartTimeRef.current = null;
+  };
+
+  // Helper function to get actual recording duration in seconds
+  const getActualRecordingDuration = (): number => {
+    if (!recordingStartTimeRef.current) return 0;
+    return (Date.now() - recordingStartTimeRef.current) / 1000;
   };
 
   const startRecording = async () => {
@@ -135,11 +145,13 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
       
       mediaRecorder.onstop = () => {
         console.log('MediaRecorder stopped naturally');
-        const hasReasonableRecordingTime = elapsedTime >= 1;
+        const actualDuration = getActualRecordingDuration();
+        const hasReasonableRecordingTime = actualDuration >= 1;
         const hasAudioChunks = audioChunksRef.current.length > 0;
         
         console.log('Natural stop - Recording stats:', {
           elapsedTime,
+          actualDuration,
           hasReasonableRecordingTime,
           hasAudioChunks,
           chunks: audioChunksRef.current.length
@@ -163,6 +175,7 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
       // Start recording
       mediaRecorder.start();
       setIsRecording(true);
+      recordingStartTimeRef.current = Date.now(); // Track actual start time
       
       // Start timer
       timerIntervalRef.current = window.setInterval(() => {
@@ -210,11 +223,13 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
     }
     
     // Check if we have enough recording time to create a valid file
-    const hasReasonableRecordingTime = elapsedTime >= 1; // At least 1 second
+    const actualDuration = getActualRecordingDuration();
+    const hasReasonableRecordingTime = actualDuration >= 1; // At least 1 second
     const hasAudioChunks = audioChunksRef.current.length > 0;
     
     console.log('Recording stats:', {
       elapsedTime,
+      actualDuration,
       hasReasonableRecordingTime,
       hasAudioChunks,
       chunks: audioChunksRef.current.length
