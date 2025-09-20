@@ -116,7 +116,7 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
       
       mediaRecorder.onstop = () => {
         console.log('MediaRecorder onstop event fired');
-        handleRecordingComplete();
+        finishRecording();
       };
 
       mediaRecorder.onerror = (event) => {
@@ -152,85 +152,88 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
   };
 
   const stopRecording = () => {
-    if (isProcessing) return; // Prevent multiple clicks
+    console.log('STOP BUTTON CLICKED - FORCE STOPPING EVERYTHING');
     
-    console.log('Stop recording called', { 
-      hasMediaRecorder: !!mediaRecorderRef.current, 
-      isRecording, 
-      recorderState: mediaRecorderRef.current?.state 
-    });
-    
-    setIsProcessing(true);
+    // IMMEDIATELY stop everything - no checks, no delays
     setIsRecording(false);
+    setIsProcessing(true);
     
-    // Stop timer immediately
+    // Force stop timer immediately
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
+      console.log('Timer stopped');
     }
     
-    // Stop all tracks immediately
+    // Force stop all audio tracks immediately
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => {
         track.stop();
-        console.log('Stopped track:', track.kind);
+        console.log('Force stopped track:', track.kind);
       });
       streamRef.current = null;
+      console.log('Stream cleared');
     }
     
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+    // Force stop MediaRecorder - no state checking
+    if (mediaRecorderRef.current) {
       try {
-        mediaRecorderRef.current.stop();
-        console.log('MediaRecorder stop() called');
-        
-        // Failsafe: If onstop doesn't fire within 3 seconds, force cleanup
-        setTimeout(() => {
-          if (isProcessing) {
-            console.warn('MediaRecorder onstop event timeout, forcing cleanup');
-            handleRecordingComplete();
-          }
-        }, 3000);
+        console.log('Current MediaRecorder state:', mediaRecorderRef.current.state);
+        // Stop regardless of state
+        if (mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+          console.log('MediaRecorder.stop() called');
+        }
       } catch (error) {
-        console.error('Error stopping MediaRecorder:', error);
-        handleRecordingComplete();
+        console.error('Error calling MediaRecorder.stop():', error);
       }
+      
+      // Don't wait for onstop - force cleanup after 500ms
+      setTimeout(() => {
+        console.log('Force cleanup after 500ms');
+        finishRecording();
+      }, 500);
     } else {
-      console.warn('MediaRecorder not in recording state or not found');
-      handleRecordingComplete();
+      console.log('No MediaRecorder found, immediate cleanup');
+      finishRecording();
     }
   };
 
-  const handleRecordingComplete = () => {
-    if (!isProcessing) return; // Already handled
+  const finishRecording = () => {
+    console.log('finishRecording called');
     
-    console.log('handleRecordingComplete called');
-    
-    // Create audio file if we have chunks
-    if (audioChunksRef.current.length > 0) {
-      const mimeType = getSupportedMimeType();
-      const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-      const extension = getFileExtension(mimeType);
-      const audioFile = new File([audioBlob], `recording-${new Date().toISOString()}.${extension}`, { type: mimeType });
-      
-      console.log('Recording complete:', {
-        size: audioFile.size,
-        type: audioFile.type,
-        duration: elapsedTime,
-        chunks: audioChunksRef.current.length
-      });
-      
-      // Reset state
-      setElapsedTime(0);
-      audioChunksRef.current = [];
-      setIsProcessing(false);
-      
-      onRecordingComplete(audioFile);
-    } else {
-      console.warn('No audio chunks found, cannot create file');
-      setIsProcessing(false);
-      setElapsedTime(0);
-      setError('Recording failed - no audio data captured. Please try again.');
+    // Create audio file if we have any chunks at all
+    if (audioChunksRef.current && audioChunksRef.current.length > 0) {
+      try {
+        const mimeType = getSupportedMimeType();
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        const extension = getFileExtension(mimeType);
+        const audioFile = new File([audioBlob], `recording-${new Date().toISOString()}.${extension}`, { type: mimeType });
+        
+        console.log('Audio file created:', {
+          size: audioFile.size,
+          type: audioFile.type,
+          chunks: audioChunksRef.current.length
+        });
+        
+        // Reset everything
+        audioChunksRef.current = [];
+        setElapsedTime(0);
+        setIsProcessing(false);
+        
+        onRecordingComplete(audioFile);
+        return;
+      } catch (error) {
+        console.error('Error creating audio file:', error);
+      }
     }
+    
+    // If no audio or error, just reset everything
+    console.log('No audio data or error - resetting to initial state');
+    audioChunksRef.current = [];
+    setElapsedTime(0);
+    setIsProcessing(false);
+    setError('Recording stopped but no audio data was captured. Please try again.');
   };
 
   useEffect(() => {
@@ -304,6 +307,33 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
             {error && (
               <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg max-w-sm mx-auto">
                 <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+              </div>
+            )}
+
+            {/* Emergency Force Stop Button - for debugging */}
+            {(isRecording || isProcessing) && (
+              <div className="mt-4">
+                <button 
+                  onClick={() => {
+                    console.log('EMERGENCY FORCE STOP TRIGGERED');
+                    setIsRecording(false);
+                    setIsProcessing(false);
+                    setElapsedTime(0);
+                    if (timerIntervalRef.current) {
+                      clearInterval(timerIntervalRef.current);
+                      timerIntervalRef.current = null;
+                    }
+                    if (streamRef.current) {
+                      streamRef.current.getTracks().forEach(track => track.stop());
+                      streamRef.current = null;
+                    }
+                    audioChunksRef.current = [];
+                    mediaRecorderRef.current = null;
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                >
+                  🚨 Force Stop Emergency Reset
+                </button>
               </div>
             )}
         </div>
