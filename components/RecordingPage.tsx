@@ -115,37 +115,8 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
       };
       
       mediaRecorder.onstop = () => {
-        console.log('MediaRecorder stopped, processing audio...');
-        setIsRecording(false);
-        
-        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-        const extension = getFileExtension(mimeType);
-        const audioFile = new File([audioBlob], `recording-${new Date().toISOString()}.${extension}`, { type: mimeType });
-        
-        console.log('Recording complete:', {
-          size: audioFile.size,
-          type: audioFile.type,
-          duration: elapsedTime
-        });
-        
-        // Reset timer and chunks
-        setElapsedTime(0);
-        audioChunksRef.current = [];
-        
-        // Clean up stream
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach(track => track.stop());
-          streamRef.current = null;
-        }
-        
-        // Clear timer
-        if (timerIntervalRef.current) {
-          clearInterval(timerIntervalRef.current);
-          timerIntervalRef.current = null;
-        }
-        
-        setIsProcessing(false);
-        onRecordingComplete(audioFile);
+        console.log('MediaRecorder onstop event fired');
+        handleRecordingComplete();
       };
 
       mediaRecorder.onerror = (event) => {
@@ -190,32 +161,75 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
     });
     
     setIsProcessing(true);
+    setIsRecording(false);
     
-    if (mediaRecorderRef.current) {
-      // Check recorder state instead of just isRecording
-      if (mediaRecorderRef.current.state === 'recording') {
+    // Stop timer immediately
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+    
+    // Stop all tracks immediately
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => {
+        track.stop();
+        console.log('Stopped track:', track.kind);
+      });
+      streamRef.current = null;
+    }
+    
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      try {
         mediaRecorderRef.current.stop();
-      }
-      setIsRecording(false);
-      
-      // Stop timer
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = null;
-      }
-      
-      // Stop all tracks
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => {
-          track.stop();
-          console.log('Stopped track:', track.kind);
-        });
+        console.log('MediaRecorder stop() called');
+        
+        // Failsafe: If onstop doesn't fire within 3 seconds, force cleanup
+        setTimeout(() => {
+          if (isProcessing) {
+            console.warn('MediaRecorder onstop event timeout, forcing cleanup');
+            handleRecordingComplete();
+          }
+        }, 3000);
+      } catch (error) {
+        console.error('Error stopping MediaRecorder:', error);
+        handleRecordingComplete();
       }
     } else {
-      console.warn('No media recorder found');
-      setIsRecording(false);
+      console.warn('MediaRecorder not in recording state or not found');
+      handleRecordingComplete();
+    }
+  };
+
+  const handleRecordingComplete = () => {
+    if (!isProcessing) return; // Already handled
+    
+    console.log('handleRecordingComplete called');
+    
+    // Create audio file if we have chunks
+    if (audioChunksRef.current.length > 0) {
+      const mimeType = getSupportedMimeType();
+      const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+      const extension = getFileExtension(mimeType);
+      const audioFile = new File([audioBlob], `recording-${new Date().toISOString()}.${extension}`, { type: mimeType });
+      
+      console.log('Recording complete:', {
+        size: audioFile.size,
+        type: audioFile.type,
+        duration: elapsedTime,
+        chunks: audioChunksRef.current.length
+      });
+      
+      // Reset state
       setElapsedTime(0);
+      audioChunksRef.current = [];
       setIsProcessing(false);
+      
+      onRecordingComplete(audioFile);
+    } else {
+      console.warn('No audio chunks found, cannot create file');
+      setIsProcessing(false);
+      setElapsedTime(0);
+      setError('Recording failed - no audio data captured. Please try again.');
     }
   };
 
