@@ -60,81 +60,88 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onFileSelect, onViewMeeting
     }
   };
 
-  // Generate a test audio file for debugging
-  const generateTestAudio = () => {
-    // Create a simple 5-second sine wave audio file
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const sampleRate = audioContext.sampleRate;
-    const duration = 5; // 5 seconds
-    const numSamples = sampleRate * duration;
-    
-    const audioBuffer = audioContext.createBuffer(1, numSamples, sampleRate);
-    const channelData = audioBuffer.getChannelData(0);
-    
-    // Generate a 440Hz sine wave (A note)
-    for (let i = 0; i < numSamples; i++) {
-      channelData[i] = Math.sin(2 * Math.PI * 440 * i / sampleRate) * 0.3;
-    }
-    
-    // Convert to WAV blob
-    const wavBlob = audioBufferToWav(audioBuffer);
-    const testFile = new File([wavBlob], 'test-audio.wav', { type: 'audio/wav' });
-    
-    console.log('Generated test audio file:', {
-      name: testFile.name,
-      type: testFile.type,
-      size: testFile.size
-    });
-    
-    onFileSelect(testFile);
-  };
-
-  // Convert AudioBuffer to WAV format
-  const audioBufferToWav = (buffer: AudioBuffer): Blob => {
-    const length = buffer.length;
-    const numberOfChannels = buffer.numberOfChannels;
-    const sampleRate = buffer.sampleRate;
-    const bytesPerSample = 2;
-    const blockAlign = numberOfChannels * bytesPerSample;
-    const byteRate = sampleRate * blockAlign;
-    const dataSize = length * blockAlign;
-    const bufferSize = 44 + dataSize;
-    
-    const arrayBuffer = new ArrayBuffer(bufferSize);
-    const view = new DataView(arrayBuffer);
-    
-    // WAV header
-    const writeString = (offset: number, string: string) => {
-      for (let i = 0; i < string.length; i++) {
-        view.setUint8(offset + i, string.charCodeAt(i));
+  // Generate a test audio file for debugging using MediaRecorder
+  const generateTestAudio = async () => {
+    try {
+      // Create a simple audio context to generate test audio
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const duration = 3; // 3 seconds
+      const sampleRate = audioContext.sampleRate;
+      const numSamples = sampleRate * duration;
+      
+      // Create buffer and generate a simple tone
+      const audioBuffer = audioContext.createBuffer(1, numSamples, sampleRate);
+      const channelData = audioBuffer.getChannelData(0);
+      
+      // Generate a 440Hz sine wave
+      for (let i = 0; i < numSamples; i++) {
+        channelData[i] = Math.sin(2 * Math.PI * 440 * i / sampleRate) * 0.1;
       }
-    };
-    
-    writeString(0, 'RIFF');
-    view.setUint32(4, bufferSize - 8, true);
-    writeString(8, 'WAVE');
-    writeString(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, numberOfChannels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, byteRate, true);
-    view.setUint16(32, blockAlign, true);
-    view.setUint16(34, bytesPerSample * 8, true);
-    writeString(36, 'data');
-    view.setUint32(40, dataSize, true);
-    
-    // Convert audio data
-    let offset = 44;
-    for (let i = 0; i < length; i++) {
-      for (let channel = 0; channel < numberOfChannels; channel++) {
-        const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
-        view.setInt16(offset, sample * 0x7FFF, true);
-        offset += 2;
-      }
+      
+      // Use MediaRecorder to create a properly encoded audio file
+      const stream = audioContext.createMediaStreamDestination();
+      const source = audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(stream);
+      
+      // Get supported mime type
+      const getSupportedMimeType = (): string => {
+        const types = [
+          'audio/webm;codecs=opus',
+          'audio/webm',
+          'audio/mp4',
+          'audio/ogg;codecs=opus'
+        ];
+        
+        for (const type of types) {
+          if (MediaRecorder.isTypeSupported(type)) {
+            return type;
+          }
+        }
+        return 'audio/webm'; // fallback
+      };
+      
+      const mimeType = getSupportedMimeType();
+      const mediaRecorder = new MediaRecorder(stream.stream, { mimeType });
+      const chunks: Blob[] = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(chunks, { type: mimeType });
+        const extension = mimeType.includes('webm') ? 'webm' : 
+                         mimeType.includes('mp4') ? 'm4a' : 'ogg';
+        const testFile = new File([audioBlob], `test-audio.${extension}`, { type: mimeType });
+        
+        console.log('Generated test audio file using MediaRecorder:', {
+          name: testFile.name,
+          type: testFile.type,
+          size: testFile.size,
+          mimeType
+        });
+        
+        onFileSelect(testFile);
+      };
+      
+      // Start recording
+      mediaRecorder.start();
+      source.start();
+      
+      // Stop after duration
+      setTimeout(() => {
+        source.stop();
+        mediaRecorder.stop();
+        audioContext.close();
+      }, duration * 1000 + 100); // Small buffer to ensure complete recording
+      
+    } catch (error) {
+      console.error('Error generating test audio:', error);
+      alert('Failed to generate test audio. Please try uploading a real audio file instead.');
     }
-    
-    return new Blob([arrayBuffer], { type: 'audio/wav' });
   };
 
   const totalMinutesTranscribed = Math.floor(meetings.reduce((acc, meeting) => acc + (meeting.durationSeconds || 0), 0) / 60);

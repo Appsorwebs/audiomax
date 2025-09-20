@@ -144,7 +144,7 @@ const getAudioMetadata = (file: File): Promise<{ duration: number; url: string }
                         errorMessage = 'Network error while loading audio.';
                         break;
                     case MediaError.MEDIA_ERR_DECODE:
-                        errorMessage = 'Audio file is corrupted or in an unsupported format.';
+                        errorMessage = 'Audio file format not supported or corrupted.';
                         break;
                     case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
                         errorMessage = 'Audio format not supported by your browser.';
@@ -154,7 +154,14 @@ const getAudioMetadata = (file: File): Promise<{ duration: number; url: string }
                 }
             }
             
-            reject(`${errorMessage} Please try a different audio file or convert to MP3/WAV format.`);
+            // For generated test files, provide specific guidance
+            if (file.name.includes('test-audio')) {
+                errorMessage += ' Try using the recording feature or upload a real MP3/WAV file instead.';
+            } else {
+                errorMessage += ' Please try a different audio file or convert to MP3/WAV format.';
+            }
+            
+            reject(errorMessage);
         };
 
         // Set up event listeners
