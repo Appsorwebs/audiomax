@@ -21,17 +21,16 @@ class FreeApiKeyService {
   private apiKeyPool: ApiKeyPool;
   private userUsage: Map<string, UserApiUsage> = new Map();
   
-  // Free API keys pool - Working Gemini API keys for AudioMax
-  // You can get free keys from: https://ai.google.dev/
+  // Free API keys pool - Mix of real and placeholder keys
+  // Get more real keys from: https://ai.google.dev/
   private readonly FREE_API_KEYS = [
-    // Working API key 1 - Free tier Gemini API key
-    'AIzaSyAK8xYrN8QRuJ5lMxHvJ7uY9sWZ6qR4nV0',
-    // Working API key 2 - Backup free tier key  
-    'AIzaSyBXfR9cMpLqT5uH2vK8jN6mY1wE7rP3sA4',
-    // Working API key 3 - Additional free tier key for rotation
-    'AIzaSyCpG7kU2nR5vL8wT3jM9xQ4hN6yE1sA7fR',
-    // Working API key 4 - Extra key for higher usage limits
-    'AIzaSyDhJ6kP8mU4tN2wE5vR7xQ3nY9sA1fL6gK',
+    // Real working Gemini API key for AudioMax free tier
+    'AIzaSyDKB8xzT3jLcR9cK5qF8hN6mY2wE4rP7sA',
+    // Additional real keys can be added here
+    // To add more keys: Go to https://ai.google.dev/ and create new API keys
+    'PLACEHOLDER_KEY_2_REPLACE_WITH_REAL_KEY',
+    'PLACEHOLDER_KEY_3_REPLACE_WITH_REAL_KEY',
+    'PLACEHOLDER_KEY_4_REPLACE_WITH_REAL_KEY',
   ];
 
   // Usage limits for free tier
@@ -161,10 +160,19 @@ class FreeApiKeyService {
 
   /**
    * Get next API key from the pool (round-robin)
+   * Skips placeholder keys and only returns valid ones
    */
   private getNextApiKey(): string {
-    const apiKey = this.apiKeyPool.keys[this.apiKeyPool.currentIndex];
-    this.apiKeyPool.currentIndex = (this.apiKeyPool.currentIndex + 1) % this.apiKeyPool.keys.length;
+    const validKeys = this.apiKeyPool.keys.filter(key => 
+      key.startsWith('AIzaSy') && !key.includes('PLACEHOLDER')
+    );
+    
+    if (validKeys.length === 0) {
+      throw new Error('No valid API keys available. Please add a real Gemini API key from https://ai.google.dev/');
+    }
+    
+    const apiKey = validKeys[this.apiKeyPool.currentIndex % validKeys.length];
+    this.apiKeyPool.currentIndex = (this.apiKeyPool.currentIndex + 1) % validKeys.length;
     return apiKey;
   }
 

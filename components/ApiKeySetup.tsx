@@ -32,10 +32,13 @@ const ApiKeySetup: React.FC<ApiKeySetupProps> = ({ onApiKeySet }) => {
     <div className="max-w-2xl mx-auto bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8 m-4">
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2">
-          🔑 API Key Required
+          🔑 Get Your Free API Key
         </h2>
         <p className="text-slate-600 dark:text-slate-400">
-          AudioMax needs a Gemini AI API key to transcribe your audio files.
+          AudioMax needs a free Gemini AI API key to transcribe your audio files.
+        </p>
+        <p className="text-sm text-sky-600 dark:text-sky-400 mt-2">
+          Don't worry - it's completely free and takes less than 2 minutes!
         </p>
       </div>
 
@@ -81,32 +84,41 @@ const ApiKeySetup: React.FC<ApiKeySetupProps> = ({ onApiKeySet }) => {
 
           <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">
             <p className="text-sm text-blue-700 dark:text-blue-300">
-              <strong>How to get a free API key:</strong>
+              <strong>📋 Step-by-step instructions:</strong>
             </p>
-            <ol className="text-sm text-blue-600 dark:text-blue-400 mt-1 ml-4 list-decimal">
-              <li>Visit <a href="https://ai.google.dev/" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500">ai.google.dev</a></li>
+            <ol className="text-sm text-blue-600 dark:text-blue-400 mt-1 ml-4 list-decimal space-y-1">
+              <li>Visit <a href="https://ai.google.dev/" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-500 font-medium">ai.google.dev</a></li>
               <li>Click "Get API key in Google AI Studio"</li>
-              <li>Create a new API key</li>
-              <li>Copy and paste it above</li>
+              <li>Sign in with your Google account</li>
+              <li>Click "Create API key" → "Create API key in new project"</li>
+              <li>Copy the key (starts with "AIzaSy...")</li>
+              <li>Paste it in the field above and click "Save"</li>
             </ol>
+            <p className="text-xs text-blue-500 dark:text-blue-400 mt-2">
+              ⚡ Free tier includes 15 requests per minute - perfect for AudioMax!
+            </p>
           </div>
         </div>
 
         {/* Option 2: Demo mode */}
         <div className="border border-amber-200 dark:border-amber-700 rounded-lg p-6 bg-amber-50 dark:bg-amber-900/20">
           <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-200 mb-3">
-            🚧 Demo Mode (Limited)
+            🚧 Preview Mode (No Transcription)
           </h3>
           <p className="text-sm text-amber-700 dark:text-amber-300 mb-4">
-            Try the app with sample transcriptions. Real transcription will be disabled.
+            Explore the interface without transcription. You can test recording and see the UI, but won't get real transcriptions.
           </p>
           
           <button
             onClick={handleUseDemo}
             className="w-full py-2 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-md font-medium transition-colors"
           >
-            Continue in Demo Mode
+            Continue in Preview Mode
           </button>
+          
+          <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 text-center">
+            You can add an API key later to enable real transcription
+          </p>
         </div>
       </div>
     </div>

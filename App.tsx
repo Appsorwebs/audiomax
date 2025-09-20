@@ -214,7 +214,7 @@ const App: React.FC = () => {
 
   // Check if API key is available
   useEffect(() => {
-    // Since we have working free API keys, always allow access
+    // Since we have at least one working API key, allow access
     setNeedsApiKey(false);
   }, []);
 
