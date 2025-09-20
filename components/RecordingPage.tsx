@@ -134,8 +134,24 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
       };
       
       mediaRecorder.onstop = () => {
-        console.log('MediaRecorder stopped, creating file...');
-        createAudioFile();
+        console.log('MediaRecorder stopped naturally');
+        const hasReasonableRecordingTime = elapsedTime >= 1;
+        const hasAudioChunks = audioChunksRef.current.length > 0;
+        
+        console.log('Natural stop - Recording stats:', {
+          elapsedTime,
+          hasReasonableRecordingTime,
+          hasAudioChunks,
+          chunks: audioChunksRef.current.length
+        });
+        
+        if (hasReasonableRecordingTime && hasAudioChunks) {
+          createAudioFile();
+        } else {
+          console.log('Natural stop: Recording too short or no data, resetting');
+          resetRecording();
+          setError('Recording too short. Please record for at least 1 second.');
+        }
       };
 
       mediaRecorder.onerror = (event) => {
@@ -193,6 +209,17 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
       console.log('Stream cleared');
     }
     
+    // Check if we have enough recording time to create a valid file
+    const hasReasonableRecordingTime = elapsedTime >= 1; // At least 1 second
+    const hasAudioChunks = audioChunksRef.current.length > 0;
+    
+    console.log('Recording stats:', {
+      elapsedTime,
+      hasReasonableRecordingTime,
+      hasAudioChunks,
+      chunks: audioChunksRef.current.length
+    });
+    
     // Force stop MediaRecorder - no state checking
     if (mediaRecorderRef.current) {
       try {
@@ -201,25 +228,43 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
         if (mediaRecorderRef.current.state !== 'inactive') {
           mediaRecorderRef.current.stop();
           console.log('MediaRecorder.stop() called');
-        } else {
-          // If already inactive, create file immediately
+        } else if (hasReasonableRecordingTime && hasAudioChunks) {
+          // Only create file if we have reasonable data
           createAudioFile();
+        } else {
+          // Just reset for very short recordings
+          console.log('Recording too short, just resetting');
+          resetRecording();
         }
       } catch (error) {
         console.error('Error calling MediaRecorder.stop():', error);
-        createAudioFile(); // Force create file on error
+        if (hasReasonableRecordingTime && hasAudioChunks) {
+          createAudioFile();
+        } else {
+          resetRecording();
+        }
       }
       
       // Timeout fallback if onstop doesn't fire within 2 seconds
       setTimeout(() => {
         if (isProcessing) {
           console.log('Force cleanup after 2s timeout');
-          createAudioFile();
+          if (hasReasonableRecordingTime && hasAudioChunks) {
+            createAudioFile();
+          } else {
+            console.log('Timeout: Recording too short, resetting');
+            resetRecording();
+          }
         }
       }, 2000);
     } else {
-      console.log('No MediaRecorder found, immediate cleanup');
-      createAudioFile();
+      console.log('No MediaRecorder found');
+      if (hasReasonableRecordingTime && hasAudioChunks) {
+        createAudioFile();
+      } else {
+        console.log('No MediaRecorder and recording too short, resetting');
+        resetRecording();
+      }
     }
   };
 
@@ -362,6 +407,9 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
                     // Force immediate reset of all states
                     resetRecording();
                     setError(null);
+                    // Show brief feedback
+                    setError('Recording cancelled and reset successfully.');
+                    setTimeout(() => setError(null), 3000);
                   }}
                   className="px-4 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors border-2 border-red-700"
                 >
