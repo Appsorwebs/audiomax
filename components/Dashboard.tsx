@@ -60,89 +60,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onFileSelect, onViewMeeting
     }
   };
 
-  // Generate a test audio file for debugging using MediaRecorder
-  const generateTestAudio = async () => {
-    try {
-      // Create a simple audio context to generate test audio
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const duration = 3; // 3 seconds
-      const sampleRate = audioContext.sampleRate;
-      const numSamples = sampleRate * duration;
-      
-      // Create buffer and generate a simple tone
-      const audioBuffer = audioContext.createBuffer(1, numSamples, sampleRate);
-      const channelData = audioBuffer.getChannelData(0);
-      
-      // Generate a 440Hz sine wave
-      for (let i = 0; i < numSamples; i++) {
-        channelData[i] = Math.sin(2 * Math.PI * 440 * i / sampleRate) * 0.1;
-      }
-      
-      // Use MediaRecorder to create a properly encoded audio file
-      const stream = audioContext.createMediaStreamDestination();
-      const source = audioContext.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(stream);
-      
-      // Get supported mime type
-      const getSupportedMimeType = (): string => {
-        const types = [
-          'audio/webm;codecs=opus',
-          'audio/webm',
-          'audio/mp4',
-          'audio/ogg;codecs=opus'
-        ];
-        
-        for (const type of types) {
-          if (MediaRecorder.isTypeSupported(type)) {
-            return type;
-          }
-        }
-        return 'audio/webm'; // fallback
-      };
-      
-      const mimeType = getSupportedMimeType();
-      const mediaRecorder = new MediaRecorder(stream.stream, { mimeType });
-      const chunks: Blob[] = [];
-      
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunks.push(event.data);
-        }
-      };
-      
-      mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(chunks, { type: mimeType });
-        const extension = mimeType.includes('webm') ? 'webm' : 
-                         mimeType.includes('mp4') ? 'm4a' : 'ogg';
-        const testFile = new File([audioBlob], `test-audio.${extension}`, { type: mimeType });
-        
-        console.log('Generated test audio file using MediaRecorder:', {
-          name: testFile.name,
-          type: testFile.type,
-          size: testFile.size,
-          mimeType
-        });
-        
-        onFileSelect(testFile);
-      };
-      
-      // Start recording
-      mediaRecorder.start();
-      source.start();
-      
-      // Stop after duration
-      setTimeout(() => {
-        source.stop();
-        mediaRecorder.stop();
-        audioContext.close();
-      }, duration * 1000 + 100); // Small buffer to ensure complete recording
-      
-    } catch (error) {
-      console.error('Error generating test audio:', error);
-      alert('Failed to generate test audio. Please try uploading a real audio file instead.');
-    }
-  };
+
 
   const totalMinutesTranscribed = Math.floor(meetings.reduce((acc, meeting) => acc + (meeting.durationSeconds || 0), 0) / 60);
   const totalMeetings = meetings.length;
@@ -178,7 +96,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onFileSelect, onViewMeeting
       {/* API Usage Display for Free Users */}
       <ApiUsageDisplay user={user} onUpgrade={onUpgrade} />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <ActionCard
           onClick={handleUploadClick}
           icon={<UploadIcon className="h-12 w-12 mb-4" />}
@@ -200,15 +118,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onFileSelect, onViewMeeting
           subtitle="Capture a new meeting"
           ariaLabel="Record a new audio meeting"
         />
-        
-        {/* Test Audio Button for Debugging */}
-        <ActionCard
-          onClick={generateTestAudio}
-          icon={<div className="h-12 w-12 mb-4 flex items-center justify-center text-2xl">🎵</div>}
-          title="Test Audio"
-          subtitle="Generate sample audio"
-          ariaLabel="Test with generated audio file"
-        />
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="space-y-4">
             <StatCard title="Minutes Transcribed" value={`${totalMinutesTranscribed} min`} total={`${maxMinutes} min`} />
             <StatCard title="Meetings This Month" value={`${totalMeetings}`} total={`${maxUploads}`} />
