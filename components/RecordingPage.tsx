@@ -170,33 +170,68 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
   };
 
   const stopRecording = () => {
-    if (!isRecording || !mediaRecorderRef.current) return;
+    console.log('STOP BUTTON CLICKED - FORCE STOPPING EVERYTHING');
     
-    console.log('Stopping recording...');
+    // IMMEDIATELY force stop - no guards or checks
     setIsRecording(false);
     setIsProcessing(true);
     
-    // Stop timer immediately
+    // Force stop timer immediately
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
+      console.log('Timer stopped');
     }
     
-    try {
-      // Stop MediaRecorder (this will trigger onstop event)
-      if (mediaRecorderRef.current.state === 'recording') {
-        mediaRecorderRef.current.stop();
+    // Force stop all audio tracks immediately
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => {
+        track.stop();
+        console.log('Force stopped track:', track.kind);
+      });
+      streamRef.current = null;
+      console.log('Stream cleared');
+    }
+    
+    // Force stop MediaRecorder - no state checking
+    if (mediaRecorderRef.current) {
+      try {
+        console.log('Current MediaRecorder state:', mediaRecorderRef.current.state);
+        // Stop regardless of state
+        if (mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+          console.log('MediaRecorder.stop() called');
+        } else {
+          // If already inactive, create file immediately
+          createAudioFile();
+        }
+      } catch (error) {
+        console.error('Error calling MediaRecorder.stop():', error);
+        createAudioFile(); // Force create file on error
       }
-    } catch (error) {
-      console.error('Error stopping MediaRecorder:', error);
-      createAudioFile(); // Fallback if stop fails
+      
+      // Timeout fallback if onstop doesn't fire within 2 seconds
+      setTimeout(() => {
+        if (isProcessing) {
+          console.log('Force cleanup after 2s timeout');
+          createAudioFile();
+        }
+      }, 2000);
+    } else {
+      console.log('No MediaRecorder found, immediate cleanup');
+      createAudioFile();
     }
   };
 
   const createAudioFile = () => {
+    console.log('createAudioFile called, chunks available:', audioChunksRef.current.length);
+    
     try {
       if (audioChunksRef.current.length === 0) {
-        throw new Error('No audio data recorded');
+        console.warn('No audio chunks available, resetting state');
+        resetRecording();
+        setError('Recording stopped but no audio data was captured. Please try again.');
+        return;
       }
       
       const mimeType = getSupportedMimeType();
@@ -224,8 +259,8 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
       
     } catch (error) {
       console.error('Error creating audio file:', error);
-      setError('Failed to create audio file. Please try recording again.');
       resetRecording();
+      setError('Failed to create audio file. Please try recording again.');
     }
   };
 
@@ -306,6 +341,26 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
                 >
                   Dismiss
                 </button>
+              </div>
+            )}
+
+            {/* Emergency Reset Button - Always available when recording or processing */}
+            {(isRecording || isProcessing) && (
+              <div className="mt-6">
+                <button 
+                  onClick={() => {
+                    console.log('EMERGENCY RESET TRIGGERED');
+                    // Force immediate reset of all states
+                    resetRecording();
+                    setError(null);
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors border-2 border-red-700"
+                >
+                  🚨 Force Stop & Reset
+                </button>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Use if recording won't stop normally
+                </p>
               </div>
             )}
         </div>
