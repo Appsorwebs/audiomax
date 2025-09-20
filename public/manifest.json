@@ -1,0 +1,26 @@
+{
+  "name": "AudioMax by AppsOrWebs Limited",
+  "short_name": "AudioMax",
+  "description": "AI-powered audio transcription and meeting analysis by AppsOrWebs Limited",
+  "developer": {
+    "name": "AppsOrWebs Limited",
+    "url": "https://appsorwebs.com"
+  },
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png", 
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#0ea5e9",
+  "background_color": "#ffffff",
+  "orientation": "portrait-primary"
+}
