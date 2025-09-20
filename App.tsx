@@ -43,17 +43,80 @@ const createGuestUser = (): User => {
 
 const getAudioMetadata = (file: File): Promise<{ duration: number; url: string }> => {
     return new Promise((resolve, reject) => {
+        console.log('Loading audio metadata for file:', {
+            name: file.name,
+            type: file.type,
+            size: file.size
+        });
+
+        // Check if file type is supported
+        const supportedTypes = [
+            'audio/wav', 'audio/wave', 'audio/x-wav',
+            'audio/mp3', 'audio/mpeg', 'audio/mp4', 'audio/m4a',
+            'audio/ogg', 'audio/webm', 'audio/aac', 'audio/flac'
+        ];
+
+        const isSupported = supportedTypes.some(type => 
+            file.type === type || file.name.toLowerCase().includes(type.split('/')[1])
+        );
+
+        if (!isSupported && file.type && !file.type.startsWith('audio/')) {
+            reject(`Unsupported file type: ${file.type}. Please use a supported audio format (WAV, MP3, M4A, OGG, WebM).`);
+            return;
+        }
+
         const audio = document.createElement('audio');
         audio.preload = 'metadata';
         const url = window.URL.createObjectURL(file);
         audio.src = url;
-        audio.onloadedmetadata = () => {
+        
+        const cleanup = () => {
+            audio.removeEventListener('loadedmetadata', onLoad);
+            audio.removeEventListener('error', onError);
+            // Don't revoke URL here as it's needed for playback later
+        };
+
+        const onLoad = () => {
+            console.log('Audio metadata loaded successfully:', {
+                duration: audio.duration,
+                readyState: audio.readyState
+            });
+            cleanup();
+            
+            if (isNaN(audio.duration) || audio.duration === 0) {
+                window.URL.revokeObjectURL(url);
+                reject('Invalid audio file: duration could not be determined. Please ensure the file is not corrupted.');
+                return;
+            }
+            
             resolve({ duration: audio.duration, url });
         };
-        audio.onerror = () => {
+
+        const onError = (event: any) => {
+            console.error('Audio metadata loading failed:', {
+                error: event,
+                readyState: audio.readyState,
+                networkState: audio.networkState,
+                fileType: file.type,
+                fileName: file.name
+            });
+            cleanup();
             window.URL.revokeObjectURL(url);
-            reject('Failed to load audio metadata.');
+            reject(`Failed to load audio metadata. The file may be corrupted or in an unsupported format. Please try a different audio file.`);
         };
+
+        audio.addEventListener('loadedmetadata', onLoad);
+        audio.addEventListener('error', onError);
+        
+        // Add timeout fallback
+        setTimeout(() => {
+            if (audio.readyState === 0) {
+                console.warn('Audio metadata loading timeout');
+                cleanup();
+                window.URL.revokeObjectURL(url);
+                reject('Audio file loading timed out. Please try a smaller file or different format.');
+            }
+        }, 10000); // 10 second timeout
     });
 };
 
