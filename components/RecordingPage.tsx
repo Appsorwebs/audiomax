@@ -236,6 +236,15 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
       
       const mimeType = getSupportedMimeType();
       const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+      
+      // Check if blob has meaningful size (at least 1KB for a very short recording)
+      if (audioBlob.size < 1024) {
+        console.warn('Audio blob too small, likely corrupted:', audioBlob.size, 'bytes');
+        resetRecording();
+        setError('Recording too short or corrupted. Please try recording for at least 1 second.');
+        return;
+      }
+      
       const extension = getFileExtension(mimeType);
       const audioFile = new File(
         [audioBlob], 

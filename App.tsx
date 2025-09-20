@@ -105,7 +105,7 @@ const getAudioMetadata = (file: File): Promise<{ duration: number; url: string }
                 readyState: audio.readyState
             });
             
-            if (isNaN(audio.duration) || audio.duration === 0) {
+            if (isNaN(audio.duration) || audio.duration === 0 || audio.duration === Infinity) {
                 resolved = true;
                 cleanup();
                 window.URL.revokeObjectURL(url);
@@ -270,6 +270,14 @@ const App: React.FC = () => {
     // Estimate audio duration to check transcription limits
     try {
       const { duration: estimatedDuration } = await getAudioMetadata(audioFile);
+      
+      // Handle invalid duration (NaN, Infinity, or 0)
+      if (isNaN(estimatedDuration) || estimatedDuration === Infinity || estimatedDuration === 0) {
+        console.warn('Invalid audio duration detected:', estimatedDuration);
+        alert('Unable to determine audio duration. The file may be corrupted or in an unsupported format. Please try recording again or upload a different file.');
+        return;
+      }
+      
       const estimatedMinutes = Math.ceil(estimatedDuration / 60);
       
       if (currentPlanLimits.transcriptionMinutes !== 'unlimited' && 
@@ -280,6 +288,8 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.warn("Could not check audio duration for limits:", error);
+      alert('Unable to process audio file. The file may be corrupted or in an unsupported format. Please try recording again or upload a different file.');
+      return;
     }
     
     const steps = ["Reading Audio File...", "Transcribing...", "Summarizing Minutes...", "Finalizing..."];
