@@ -2,7 +2,162 @@
 
 ## AI-Powered Audio Transcription & Meeting Analysis
 
-**AudioMax** is a cutting-edge audio transcription and meeting analysis platform developed by **AppsOrWebs Limited**. Transform your conversations into actionable insights with the power of AI.
+# 🎙️ AudioMax - AI-Powered Audio Transcription
+
+[![React](https://img.shields.io/badge/React-19.1.0-blue.svg)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7.2-blue.svg)](https://www.typescriptlang.org/)
+[![Capacitor](https://img.shields.io/badge/Capacitor-7.4.3-purple.svg)](https://capacitorjs.com/)
+[![Vite](https://img.shields.io/badge/Vite-6.2.0-yellow.svg)](https://vitejs.dev/)
+
+AudioMax is a cutting-edge AI-powered audio transcription and meeting analysis application developed by **AppsOrWebs Limited**. Transform your audio recordings into accurate transcripts, intelligent summaries, and actionable insights.
+
+## ✨ Features
+
+- 🎯 **AI-Powered Transcription** - Convert audio to text with high accuracy using Google Gemini AI
+- 🤖 **Smart Meeting Summaries** - Generate intelligent summaries with key points and action items
+- 🌍 **Multi-Language Translation** - Translate summaries to different languages
+- 📱 **Cross-Platform** - Available on Web, iOS, and Android
+- 🔐 **Secure Authentication** - User accounts with admin notification system
+- 🌙 **Dark/Light Theme** - Beautiful UI with theme switching
+- 📊 **Meeting Analytics** - Track and organize your meeting history
+- 💾 **Cloud Storage** - Secure storage of transcriptions and summaries
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18+ 
+- npm or yarn
+- For mobile development: Xcode (iOS) and/or Android Studio (Android)
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/audiomax.git
+cd audiomax
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+```
+
+### Mobile Development
+
+```bash
+# Build for production
+npm run build
+
+# iOS development
+npm run ios:dev
+
+# Android development  
+npm run android:dev
+```
+
+## 📱 Mobile App Deployment
+
+This app is ready for deployment to both app stores:
+
+- **App ID**: `com.appsorwebs.audiomax`
+- **App Name**: AudioMax
+- **Developer**: AppsOrWebs Limited
+
+### Deploy to App Stores
+
+```bash
+# Run the automated deployment script
+./deploy-to-stores.sh
+```
+
+For detailed deployment instructions, see [`app-store-guide.md`](app-store-guide.md).
+
+## 🛠️ Tech Stack
+
+- **Frontend**: React 19 + TypeScript
+- **Mobile**: Capacitor 7 for native iOS/Android apps
+- **AI**: Google Gemini AI for transcription and analysis
+- **Styling**: Tailwind CSS with dark mode support
+- **Build Tool**: Vite for fast development and optimized builds
+- **Authentication**: Custom secure authentication system
+
+## 📂 Project Structure
+
+```
+audiomax/
+├── components/          # React components
+│   ├── icons/          # SVG icon components
+│   └── ui/             # Reusable UI components
+├── services/           # API services (AI, auth, admin)
+├── contexts/           # React contexts (theme)
+├── utils/              # Utility functions
+├── android/            # Android Capacitor project
+├── ios/                # iOS Capacitor project
+└── dist/               # Production build output
+```
+
+## 🔧 Configuration
+
+### Environment Variables
+
+Create a `.env.local` file:
+
+```env
+VITE_GEMINI_API_KEY=your_gemini_api_key_here
+```
+
+### Capacitor Configuration
+
+The app is configured for production in [`capacitor.config.ts`](capacitor.config.ts) with:
+- Splash screen configuration
+- HTTPS scheme for Android
+- Production build optimizations
+
+## 🔐 Security Features
+
+- Input sanitization for all user inputs
+- Secure token storage
+- Admin notification system for user activities
+- Environment validation
+- XSS protection
+
+## 📈 Features Roadmap
+
+- [ ] Real-time collaboration
+- [ ] Advanced audio editing
+- [ ] Custom AI models
+- [ ] Integration with calendar apps
+- [ ] Advanced analytics dashboard
+- [ ] Team collaboration features
+
+## 👥 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is proprietary software developed by AppsOrWebs Limited. All rights reserved.
+
+## 🏢 About AppsOrWebs Limited
+
+AudioMax is developed by [AppsOrWebs Limited](https://appsorwebs.com), a leading software development company specializing in AI-powered applications and cross-platform mobile solutions.
+
+## 📞 Support
+
+- **Website**: [appsorwebs.com](https://appsorwebs.com)
+- **Email**: admin@appsorwebs.com
+
+---
+
+<div align="center">
+  <p>Made with ❤️ by <a href="https://appsorwebs.com">AppsOrWebs Limited</a></p>
+</div> Transform your conversations into actionable insights with the power of AI.
 
 ---
 
