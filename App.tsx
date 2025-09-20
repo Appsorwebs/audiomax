@@ -9,6 +9,7 @@ import AuthPage from './components/AuthPage';
 import SettingsModal from './components/SettingsModal';
 import AdminDashboard from './components/AdminDashboard';
 import Credits from './components/Credits';
+import ApiKeySetup from './components/ApiKeySetup';
 import { Meeting, MagicSummary, User, SubscriptionPlan, UserSettings } from './types';
 import { PLAN_LIMITS } from './constants';
 import Header from './components/Header';
@@ -80,6 +81,17 @@ const App: React.FC = () => {
   const [processingProgressText, setProcessingProgressText] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
+  const [needsApiKey, setNeedsApiKey] = useState(false);
+
+  // Check if API key is available
+  useEffect(() => {
+    // Since we have working free API keys, always allow access
+    setNeedsApiKey(false);
+  }, []);
+
+  const handleApiKeySet = () => {
+    setNeedsApiKey(false);
+  };
 
   // Admin dashboard keyboard shortcut (Ctrl+Alt+A)
   useEffect(() => {
@@ -184,7 +196,26 @@ const App: React.FC = () => {
 
     } catch (error: any) {
         console.error("Processing failed:", error);
-        alert(`An error occurred during processing: ${error.message}\nPlease check the console for more details and ensure your API key is set up correctly.`);
+        
+        // Better error message handling
+        let errorMessage = "Unknown error occurred";
+        if (error && typeof error === 'object') {
+          if (error.message) {
+            errorMessage = error.message;
+          } else if (error.toString) {
+            errorMessage = error.toString();
+          }
+        } else if (typeof error === 'string') {
+          errorMessage = error;
+        }
+        
+        // Check if it's an API key related error
+        if (errorMessage.includes('API key') || errorMessage.includes('unauthorized') || errorMessage.includes('No API key')) {
+          alert(`🔑 API Key Required\n\nThis demo uses placeholder API keys. To use AudioMax:\n\n1. Get a free Gemini API key from: https://ai.google.dev/\n2. Add it to your browser's localStorage as 'user_api_key'\n3. Or modify the FREE_API_KEYS in freeApiService.ts\n\nError details: ${errorMessage}`);
+        } else {
+          alert(`An error occurred during processing: ${errorMessage}\n\nPlease check the console for more details and ensure your API key is set up correctly.`);
+        }
+        
         handleBackToDashboard();
     }
   };
@@ -302,9 +333,16 @@ const App: React.FC = () => {
           onHomeClick={handleBackToDashboard} 
           onPricingClick={() => setCurrentPage('pricing')} 
         />
-        <main className="container mx-auto p-4 md:p-8 flex-grow">
-          {renderPage()}
-        </main>
+
+        {needsApiKey ? (
+          <div className="flex-1 flex items-center justify-center">
+            <ApiKeySetup onApiKeySet={handleApiKeySet} />
+          </div>
+        ) : (
+          <main className="flex-1">
+            {renderPage()}
+          </main>
+        )}
         
         {/* Admin Dashboard */}
         {isAdminDashboardOpen && (

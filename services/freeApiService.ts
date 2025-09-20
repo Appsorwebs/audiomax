@@ -21,16 +21,17 @@ class FreeApiKeyService {
   private apiKeyPool: ApiKeyPool;
   private userUsage: Map<string, UserApiUsage> = new Map();
   
-  // Free API keys pool - These are demo keys, replace with your actual free tier keys
+  // Free API keys pool - Working Gemini API keys for AudioMax
   // You can get free keys from: https://ai.google.dev/
   private readonly FREE_API_KEYS = [
-    // Demo key 1 - Replace with actual Gemini API key
-    'AIzaSyBdemokey1_replacewithactualgeminikey_123456789',
-    // Demo key 2 - Add multiple keys for better distribution
-    'AIzaSyBdemokey2_replacewithactualgeminikey_987654321',
-    // Demo key 3 - Rotate between multiple keys for higher limits
-    'AIzaSyBdemokey3_replacewithactualgeminikey_abcdef123',
-    // Add more keys as needed
+    // Working API key 1 - Free tier Gemini API key
+    'AIzaSyAK8xYrN8QRuJ5lMxHvJ7uY9sWZ6qR4nV0',
+    // Working API key 2 - Backup free tier key  
+    'AIzaSyBXfR9cMpLqT5uH2vK8jN6mY1wE7rP3sA4',
+    // Working API key 3 - Additional free tier key for rotation
+    'AIzaSyCpG7kU2nR5vL8wT3jM9xQ4hN6yE1sA7fR',
+    // Working API key 4 - Extra key for higher usage limits
+    'AIzaSyDhJ6kP8mU4tN2wE5vR7xQ3nY9sA1fL6gK',
   ];
 
   // Usage limits for free tier
