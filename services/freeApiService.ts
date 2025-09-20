@@ -10,8 +10,9 @@ interface ApiKeyPool {
 
 interface UserApiUsage {
   userId: string;
-  dailyUsage: number;
-  weeklyUsage: number;
+  minutesUsedToday: number;
+  minutesUsedThisMonth: number;
+  meetingsThisMonth: number;
   lastUsed: number;
   tier: 'free' | 'premium';
 }
@@ -34,10 +35,11 @@ class FreeApiKeyService {
 
   // Usage limits for free tier
   private readonly FREE_LIMITS = {
-    DAILY_REQUESTS: 10,      // 10 transcriptions per day
-    WEEKLY_REQUESTS: 50,     // 50 transcriptions per week
-    MAX_AUDIO_DURATION: 300, // 5 minutes max audio length
-    RATE_LIMIT_MINUTES: 5,   // 5 minutes between requests
+    DAILY_MINUTES: 20,        // 20 minutes per day
+    MONTHLY_MINUTES: 60,      // 60 minutes per month
+    MONTHLY_MEETINGS: 5,      // 5 meetings per month
+    MAX_AUDIO_DURATION: 300,  // 5 minutes max per audio
+    RATE_LIMIT_MINUTES: 2,    // 2 minutes between requests
   };
 
   constructor() {
@@ -52,13 +54,13 @@ class FreeApiKeyService {
   }
 
   /**
-   * Get a free API key for a user
+   * Get a free API key for a user with audio duration
    */
-  async getFreeApiKey(userId: string): Promise<{ apiKey: string; canUse: boolean; message: string }> {
+  async getFreeApiKey(userId: string, audioDurationMinutes: number = 0): Promise<{ apiKey: string; canUse: boolean; message: string }> {
     const userUsage = this.getUserUsage(userId);
     
     // Check if user has exceeded free limits
-    const limitCheck = this.checkUsageLimits(userUsage);
+    const limitCheck = this.checkUsageLimits(userUsage, audioDurationMinutes);
     if (!limitCheck.canUse) {
       return {
         apiKey: '',
@@ -70,23 +72,26 @@ class FreeApiKeyService {
     // Get next available API key from pool
     const apiKey = this.getNextApiKey();
     
-    // Update user usage
-    this.updateUserUsage(userId);
+    // Update user usage with actual duration
+    this.updateUserUsage(userId, audioDurationMinutes);
+    
+    const remainingMinutes = this.FREE_LIMITS.MONTHLY_MINUTES - userUsage.minutesUsedThisMonth - audioDurationMinutes;
+    const remainingMeetings = this.FREE_LIMITS.MONTHLY_MEETINGS - userUsage.meetingsThisMonth - 1;
     
     return {
       apiKey,
       canUse: true,
-      message: `Free API access granted. ${this.FREE_LIMITS.DAILY_REQUESTS - userUsage.dailyUsage - 1} requests remaining today.`
+      message: `Free API access granted. ${Math.max(0, remainingMinutes)} minutes and ${Math.max(0, remainingMeetings)} meetings remaining this month.`
     };
   }
 
   /**
    * Check if user can use free API based on limits
    */
-  private checkUsageLimits(userUsage: UserApiUsage): { canUse: boolean; message: string } {
+  private checkUsageLimits(userUsage: UserApiUsage, audioDurationMinutes: number = 0): { canUse: boolean; message: string } {
     const now = Date.now();
     
-    // Check rate limiting (5 minutes between requests)
+    // Check rate limiting (2 minutes between requests)
     if (now - userUsage.lastUsed < this.FREE_LIMITS.RATE_LIMIT_MINUTES * 60 * 1000) {
       const waitTime = Math.ceil((this.FREE_LIMITS.RATE_LIMIT_MINUTES * 60 * 1000 - (now - userUsage.lastUsed)) / 60000);
       return {
@@ -95,19 +100,29 @@ class FreeApiKeyService {
       };
     }
 
-    // Check daily limit
-    if (userUsage.dailyUsage >= this.FREE_LIMITS.DAILY_REQUESTS) {
+    // Check monthly minutes limit
+    if (userUsage.minutesUsedThisMonth + audioDurationMinutes > this.FREE_LIMITS.MONTHLY_MINUTES) {
+      const remaining = this.FREE_LIMITS.MONTHLY_MINUTES - userUsage.minutesUsedThisMonth;
       return {
         canUse: false,
-        message: `Daily limit of ${this.FREE_LIMITS.DAILY_REQUESTS} transcriptions reached. Upgrade to premium for unlimited access.`
+        message: `Monthly limit of ${this.FREE_LIMITS.MONTHLY_MINUTES} minutes reached. ${Math.max(0, remaining)} minutes remaining. Upgrade to premium for unlimited access.`
       };
     }
 
-    // Check weekly limit
-    if (userUsage.weeklyUsage >= this.FREE_LIMITS.WEEKLY_REQUESTS) {
+    // Check daily minutes limit
+    if (userUsage.minutesUsedToday + audioDurationMinutes > this.FREE_LIMITS.DAILY_MINUTES) {
+      const remaining = this.FREE_LIMITS.DAILY_MINUTES - userUsage.minutesUsedToday;
       return {
         canUse: false,
-        message: `Weekly limit of ${this.FREE_LIMITS.WEEKLY_REQUESTS} transcriptions reached. Upgrade to premium for unlimited access.`
+        message: `Daily limit of ${this.FREE_LIMITS.DAILY_MINUTES} minutes reached. ${Math.max(0, remaining)} minutes remaining today.`
+      };
+    }
+
+    // Check monthly meetings limit
+    if (userUsage.meetingsThisMonth >= this.FREE_LIMITS.MONTHLY_MEETINGS) {
+      return {
+        canUse: false,
+        message: `Monthly limit of ${this.FREE_LIMITS.MONTHLY_MEETINGS} meetings reached. Upgrade to premium for unlimited access.`
       };
     }
 
@@ -121,8 +136,9 @@ class FreeApiKeyService {
     if (!this.userUsage.has(userId)) {
       this.userUsage.set(userId, {
         userId,
-        dailyUsage: 0,
-        weeklyUsage: 0,
+        minutesUsedToday: 0,
+        minutesUsedThisMonth: 0,
+        meetingsThisMonth: 0,
         lastUsed: 0,
         tier: 'free'
       });
@@ -133,10 +149,11 @@ class FreeApiKeyService {
   /**
    * Update user usage after API call
    */
-  private updateUserUsage(userId: string): void {
+  private updateUserUsage(userId: string, minutesUsed: number): void {
     const usage = this.getUserUsage(userId);
-    usage.dailyUsage += 1;
-    usage.weeklyUsage += 1;
+    usage.minutesUsedToday += minutesUsed;
+    usage.minutesUsedThisMonth += minutesUsed;
+    usage.meetingsThisMonth += 1;
     usage.lastUsed = Date.now();
     this.userUsage.set(userId, usage);
   }
@@ -167,18 +184,19 @@ class FreeApiKeyService {
       setInterval(() => this.resetDailyUsage(), 24 * 60 * 60 * 1000);
     }, msUntilMidnight);
 
-    // Weekly reset (every Sunday at midnight)
-    const nextSunday = new Date(now);
-    nextSunday.setDate(now.getDate() + (7 - now.getDay()));
-    nextSunday.setHours(0, 0, 0, 0);
+    // Monthly reset (first day of next month)
+    const nextMonth = new Date(now);
+    nextMonth.setMonth(now.getMonth() + 1);
+    nextMonth.setDate(1);
+    nextMonth.setHours(0, 0, 0, 0);
     
-    const msUntilSunday = nextSunday.getTime() - now.getTime();
+    const msUntilNextMonth = nextMonth.getTime() - now.getTime();
     
     setTimeout(() => {
-      this.resetWeeklyUsage();
-      // Set up weekly reset interval
-      setInterval(() => this.resetWeeklyUsage(), 7 * 24 * 60 * 60 * 1000);
-    }, msUntilSunday);
+      this.resetMonthlyUsage();
+      // Set up monthly reset interval (every 30 days)
+      setInterval(() => this.resetMonthlyUsage(), 30 * 24 * 60 * 60 * 1000);
+    }, msUntilNextMonth);
   }
 
   /**
@@ -186,29 +204,31 @@ class FreeApiKeyService {
    */
   private resetDailyUsage(): void {
     for (const [userId, usage] of this.userUsage.entries()) {
-      usage.dailyUsage = 0;
+      usage.minutesUsedToday = 0;
       this.userUsage.set(userId, usage);
     }
     console.log('Daily API usage reset completed');
   }
 
   /**
-   * Reset weekly usage for all users
+   * Reset monthly usage for all users
    */
-  private resetWeeklyUsage(): void {
+  private resetMonthlyUsage(): void {
     for (const [userId, usage] of this.userUsage.entries()) {
-      usage.weeklyUsage = 0;
+      usage.minutesUsedThisMonth = 0;
+      usage.meetingsThisMonth = 0;
       this.userUsage.set(userId, usage);
     }
-    console.log('Weekly API usage reset completed');
+    console.log('Monthly API usage reset completed');
   }
 
   /**
    * Get user's remaining free usage
    */
   getUserLimits(userId: string): {
-    dailyRemaining: number;
-    weeklyRemaining: number;
+    dailyMinutesRemaining: number;
+    monthlyMinutesRemaining: number;
+    monthlyMeetingsRemaining: number;
     nextResetTime: number;
     upgradeAvailable: boolean;
   } {
@@ -219,8 +239,9 @@ class FreeApiKeyService {
     tomorrow.setHours(0, 0, 0, 0);
 
     return {
-      dailyRemaining: Math.max(0, this.FREE_LIMITS.DAILY_REQUESTS - usage.dailyUsage),
-      weeklyRemaining: Math.max(0, this.FREE_LIMITS.WEEKLY_REQUESTS - usage.weeklyUsage),
+      dailyMinutesRemaining: Math.max(0, this.FREE_LIMITS.DAILY_MINUTES - usage.minutesUsedToday),
+      monthlyMinutesRemaining: Math.max(0, this.FREE_LIMITS.MONTHLY_MINUTES - usage.minutesUsedThisMonth),
+      monthlyMeetingsRemaining: Math.max(0, this.FREE_LIMITS.MONTHLY_MEETINGS - usage.meetingsThisMonth),
       nextResetTime: tomorrow.getTime(),
       upgradeAvailable: true
     };

@@ -4,7 +4,7 @@ import { transcribeAudioWithProvider, generateMeetingSummaryWithProvider } from 
 import { freeApiKeyService } from "./freeApiService";
 
 // Check for user's custom API key first, then fall back to free service
-const getUserApiKey = async (userId?: string): Promise<string | null> => {
+const getUserApiKey = async (userId?: string, audioDurationMinutes: number = 0): Promise<string | null> => {
   // Check for user's custom API key in environment or settings
   const customApiKey = process.env.API_KEY || localStorage.getItem('user_api_key');
   
@@ -14,7 +14,7 @@ const getUserApiKey = async (userId?: string): Promise<string | null> => {
 
   // Fall back to free API service for registered users
   if (userId) {
-    const freeApiResult = await freeApiKeyService.getFreeApiKey(userId);
+    const freeApiResult = await freeApiKeyService.getFreeApiKey(userId, audioDurationMinutes);
     if (freeApiResult.canUse) {
       return freeApiResult.apiKey;
     } else {
@@ -26,8 +26,8 @@ const getUserApiKey = async (userId?: string): Promise<string | null> => {
 };
 
 // Create AI instance with dynamic API key
-const createAIInstance = async (userId?: string): Promise<GoogleGenAI> => {
-  const apiKey = await getUserApiKey(userId);
+const createAIInstance = async (userId?: string, audioDurationMinutes: number = 0): Promise<GoogleGenAI> => {
+  const apiKey = await getUserApiKey(userId, audioDurationMinutes);
   if (!apiKey) {
     throw new Error("Unable to obtain API key");
   }
@@ -143,23 +143,6 @@ export const transcribeAudio = async (
     user: User,
     onProgress: (message: string) => void
 ): Promise<TranscriptLine[]> => {
-    // Check audio duration for free tier users
-    if (user.subscription === 'Free') {
-        // Estimate duration from file size (rough approximation)
-        const estimatedDuration = audioFile.size / (1024 * 16); // Very rough estimate
-        const durationCheck = freeApiKeyService.validateAudioDuration(estimatedDuration);
-        if (!durationCheck.valid) {
-            throw new Error(durationCheck.message);
-        }
-    }
-
-    // Validate API access before processing
-    try {
-        await createAIInstance(user.email); // Validate API key availability
-    } catch (error) {
-        throw new Error(`API access error: ${error instanceof Error ? error.message : String(error)}`);
-    }
-    
     onProgress('Decoding audio file...');
     
     // Check file size first - limit to prevent memory issues
@@ -173,10 +156,31 @@ export const transcribeAudio = async (
     let audioBuffer: AudioBuffer;
     
     try {
+        onProgress('Loading audio file...');
         arrayBuffer = await audioFile.arrayBuffer();
+        
+        onProgress('Processing audio...');
         audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
     } catch (error) {
         throw new Error("Failed to decode audio file. Please ensure the file is a valid audio format (MP3, WAV, M4A, etc.).");
+    }
+
+    // Calculate actual audio duration in minutes
+    const audioDurationMinutes = Math.ceil(audioBuffer.duration / 60);
+    
+    // Check audio duration for free tier users
+    if (user.subscription === 'Free') {
+        const durationCheck = freeApiKeyService.validateAudioDuration(audioBuffer.duration);
+        if (!durationCheck.valid) {
+            throw new Error(durationCheck.message);
+        }
+    }
+
+    // Validate API access with actual duration before processing
+    try {
+        await createAIInstance(user.email, audioDurationMinutes); // Validate API key availability with duration
+    } catch (error) {
+        throw new Error(`API access error: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     const CHUNK_DURATION_SECONDS = 59;

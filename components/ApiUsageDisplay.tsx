@@ -9,8 +9,9 @@ interface ApiUsageDisplayProps {
 
 const ApiUsageDisplay: React.FC<ApiUsageDisplayProps> = ({ user, onUpgrade }) => {
   const [usageLimits, setUsageLimits] = useState<{
-    dailyRemaining: number;
-    weeklyRemaining: number;
+    dailyMinutesRemaining: number;
+    monthlyMinutesRemaining: number;
+    monthlyMeetingsRemaining: number;
     nextResetTime: number;
     upgradeAvailable: boolean;
   } | null>(null);
@@ -38,13 +39,13 @@ const ApiUsageDisplay: React.FC<ApiUsageDisplayProps> = ({ user, onUpgrade }) =>
           
           <div className="space-y-2 text-sm text-blue-700 dark:text-blue-300">
             <div className="flex justify-between">
-              <span>Daily transcriptions remaining:</span>
-              <span className="font-medium">{usageLimits.dailyRemaining}/10</span>
+              <span>Minutes Transcribed:</span>
+              <span className="font-medium">{60 - usageLimits.monthlyMinutesRemaining} min / 60 min</span>
             </div>
             
             <div className="flex justify-between">
-              <span>Weekly transcriptions remaining:</span>
-              <span className="font-medium">{usageLimits.weeklyRemaining}/50</span>
+              <span>Meetings This Month:</span>
+              <span className="font-medium">{5 - usageLimits.monthlyMeetingsRemaining} / 5</span>
             </div>
             
             <div className="flex justify-between">
@@ -58,10 +59,10 @@ const ApiUsageDisplay: React.FC<ApiUsageDisplayProps> = ({ user, onUpgrade }) =>
                 <span>Free tier includes:</span>
               </div>
               <ul className="ml-4 space-y-1">
-                <li>• 10 transcriptions per day</li>
-                <li>• 50 transcriptions per week</li>
+                <li>• 60 minutes per month</li>
+                <li>• 5 meetings per month</li>
                 <li>• Up to 5 minutes per audio</li>
-                <li>• 5-minute rate limit between requests</li>
+                <li>• 2-minute rate limit between requests</li>
               </ul>
             </div>
           </div>
@@ -77,14 +78,14 @@ const ApiUsageDisplay: React.FC<ApiUsageDisplayProps> = ({ user, onUpgrade }) =>
         )}
       </div>
       
-      {(usageLimits.dailyRemaining === 0 || usageLimits.weeklyRemaining === 0) && (
+      {(usageLimits.monthlyMinutesRemaining === 0 || usageLimits.monthlyMeetingsRemaining === 0) && (
         <div className="mt-3 p-2 bg-orange-100 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded text-sm text-orange-800 dark:text-orange-200">
           <div className="flex items-center space-x-1">
             <span>⚠️</span>
             <span>
-              {usageLimits.dailyRemaining === 0 
-                ? `Daily limit reached. Reset in ${hoursUntilReset} hours.`
-                : 'Weekly limit reached. Resets on Sunday.'}
+              {usageLimits.monthlyMinutesRemaining === 0 
+                ? 'Monthly minutes limit reached. Resets next month.'
+                : 'Monthly meetings limit reached. Resets next month.'}
             </span>
           </div>
           {onUpgrade && (
