@@ -1,15 +1,38 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { TranscriptLine, MagicSummary, User } from "../types.ts";
 import { transcribeAudioWithProvider, generateMeetingSummaryWithProvider } from "./aiService";
+import { freeApiKeyService } from "./freeApiService";
 
-const API_KEY = process.env.API_KEY;
+// Check for user's custom API key first, then fall back to free service
+const getUserApiKey = async (userId?: string): Promise<string | null> => {
+  // Check for user's custom API key in environment or settings
+  const customApiKey = process.env.API_KEY || localStorage.getItem('user_api_key');
+  
+  if (customApiKey) {
+    return customApiKey;
+  }
 
-if (!API_KEY) {
-  // This warning is helpful for developers in a local environment.
-  console.warn("API_KEY environment variable not set. The application will not be able to communicate with the Gemini API.");
-}
+  // Fall back to free API service for registered users
+  if (userId) {
+    const freeApiResult = await freeApiKeyService.getFreeApiKey(userId);
+    if (freeApiResult.canUse) {
+      return freeApiResult.apiKey;
+    } else {
+      throw new Error(freeApiResult.message);
+    }
+  }
 
-const ai = API_KEY ? new GoogleGenAI({ apiKey: API_KEY }) : null;
+  throw new Error("No API key available. Please add your own Gemini API key or sign up for free access.");
+};
+
+// Create AI instance with dynamic API key
+const createAIInstance = async (userId?: string): Promise<GoogleGenAI> => {
+  const apiKey = await getUserApiKey(userId);
+  if (!apiKey) {
+    throw new Error("Unable to obtain API key");
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 // Schema needed for translation function
 const summarySchema = {
@@ -120,16 +143,29 @@ export const transcribeAudio = async (
     user: User,
     onProgress: (message: string) => void
 ): Promise<TranscriptLine[]> => {
-    if (!ai) {
-        throw new Error("API Client not initialized. Please set the API_KEY.");
+    // Check audio duration for free tier users
+    if (user.subscription === 'Free') {
+        // Estimate duration from file size (rough approximation)
+        const estimatedDuration = audioFile.size / (1024 * 16); // Very rough estimate
+        const durationCheck = freeApiKeyService.validateAudioDuration(estimatedDuration);
+        if (!durationCheck.valid) {
+            throw new Error(durationCheck.message);
+        }
+    }
+
+    // Validate API access before processing
+    try {
+        await createAIInstance(user.email); // Validate API key availability
+    } catch (error) {
+        throw new Error(`API access error: ${error instanceof Error ? error.message : String(error)}`);
     }
     
     onProgress('Decoding audio file...');
     
     // Check file size first - limit to prevent memory issues
-    const MAX_FILE_SIZE_MB = 100; // 100MB limit
+    const MAX_FILE_SIZE_MB = user.subscription === 'Free' ? 25 : 100; // Lower limit for free tier
     if (audioFile.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-        throw new Error(`File size (${Math.round(audioFile.size / (1024 * 1024))}MB) exceeds the maximum limit of ${MAX_FILE_SIZE_MB}MB. Please use a smaller file.`);
+        throw new Error(`File size (${Math.round(audioFile.size / (1024 * 1024))}MB) exceeds the maximum limit of ${MAX_FILE_SIZE_MB}MB${user.subscription === 'Free' ? ' for free tier' : ''}. Please use a smaller file.`);
     }
     
     const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -252,10 +288,8 @@ export const generateMeetingSummary = async (transcript: TranscriptLine[], user:
   return await generateMeetingSummaryWithProvider(transcript, user);
 };
 
-export const translateSummary = async (summary: MagicSummary, targetLanguage: string): Promise<MagicSummary> => {
-    if (!ai) {
-        throw new Error("API Client not initialized. Please set the API_KEY.");
-    }
+export const translateSummary = async (summary: MagicSummary, targetLanguage: string, user?: User): Promise<MagicSummary> => {
+    const ai = await createAIInstance(user?.email);
 
     const summaryText = `
         Executive Summary: ${summary.executiveSummary}

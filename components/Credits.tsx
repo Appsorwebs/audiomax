@@ -19,16 +19,6 @@ const Credits: React.FC = () => {
           </a>
           . All rights reserved.
         </p>
-        <p className="text-xs text-slate-400 dark:text-slate-500">
-          <a 
-            href="https://www.appsorwebs.com" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors cursor-pointer"
-          >
-            Developed with ❤️ by AppsOrWebs Limited
-          </a>
-        </p>
         <div className="flex justify-center items-center space-x-4 mt-2">
           <a 
             href="https://www.appsorwebs.com/privacy" 

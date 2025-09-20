@@ -30,6 +30,12 @@ dist-ssr
 .env.test.local
 .env.production.local
 
+# API Keys (NEVER commit these!)
+api-keys.json
+free-api-keys.json
+gemini-keys.txt
+*.key
+
 # Mobile app builds
 android/app/build/
 android/.gradle/

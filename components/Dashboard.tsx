@@ -6,6 +6,7 @@ import { FileAudioIcon } from './icons/FileAudioIcon';
 import { RightArrowIcon } from './icons/RightArrowIcon';
 import { MicrophoneIcon } from './icons/MicrophoneIcon';
 import { SettingsIcon } from './icons/SettingsIcon';
+import ApiUsageDisplay from './ApiUsageDisplay';
 
 interface DashboardProps {
   user: User;
@@ -89,6 +90,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onFileSelect, onViewMeeting
           <span className="hidden sm:inline">AI Settings</span>
         </button>
       </div>
+
+      {/* API Usage Display for Free Users */}
+      <ApiUsageDisplay user={user} onUpgrade={onUpgrade} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <ActionCard
