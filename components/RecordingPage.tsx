@@ -41,6 +41,7 @@ const getFileExtension = (mimeType: string): string => {
 
 const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComplete }) => {
   const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [permissionStatus, setPermissionStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown');
@@ -76,6 +77,8 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
   }, []);
 
   const startRecording = async () => {
+    if (isProcessing) return; // Prevent action during processing
+    
     try {
       setError(null);
       
@@ -112,6 +115,9 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
       };
       
       mediaRecorder.onstop = () => {
+        console.log('MediaRecorder stopped, processing audio...');
+        setIsRecording(false);
+        
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         const extension = getFileExtension(mimeType);
         const audioFile = new File([audioBlob], `recording-${new Date().toISOString()}.${extension}`, { type: mimeType });
@@ -122,7 +128,8 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
           duration: elapsedTime
         });
         
-        onRecordingComplete(audioFile);
+        // Reset timer and chunks
+        setElapsedTime(0);
         audioChunksRef.current = [];
         
         // Clean up stream
@@ -130,6 +137,15 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
           streamRef.current.getTracks().forEach(track => track.stop());
           streamRef.current = null;
         }
+        
+        // Clear timer
+        if (timerIntervalRef.current) {
+          clearInterval(timerIntervalRef.current);
+          timerIntervalRef.current = null;
+        }
+        
+        setIsProcessing(false);
+        onRecordingComplete(audioFile);
       };
 
       mediaRecorder.onerror = (event) => {
@@ -141,6 +157,7 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
       // Start recording with data collection every second for better progress tracking
       mediaRecorder.start(1000);
       setIsRecording(true);
+      console.log('Recording started, MediaRecorder state:', mediaRecorder.state);
       
       // Start timer
       timerIntervalRef.current = window.setInterval(() => {
@@ -164,13 +181,41 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
+    if (isProcessing) return; // Prevent multiple clicks
+    
+    console.log('Stop recording called', { 
+      hasMediaRecorder: !!mediaRecorderRef.current, 
+      isRecording, 
+      recorderState: mediaRecorderRef.current?.state 
+    });
+    
+    setIsProcessing(true);
+    
+    if (mediaRecorderRef.current) {
+      // Check recorder state instead of just isRecording
+      if (mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+      }
       setIsRecording(false);
+      
+      // Stop timer
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
       }
+      
+      // Stop all tracks
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => {
+          track.stop();
+          console.log('Stopped track:', track.kind);
+        });
+      }
+    } else {
+      console.warn('No media recorder found');
+      setIsRecording(false);
       setElapsedTime(0);
+      setIsProcessing(false);
     }
   };
 
@@ -198,10 +243,10 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
 
         <div>
             <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">
-                {isRecording ? "Recording in Progress" : "Ready to Record"}
+                {isProcessing ? "Processing Recording..." : isRecording ? "Recording in Progress" : "Ready to Record"}
             </h2>
             <p className="text-slate-500 dark:text-slate-400 mb-8">
-                {isRecording ? "Press the button below to stop and process." : "Press the button below to start recording."}
+                {isProcessing ? "Please wait while we process your recording." : isRecording ? "Press the red button below to stop recording." : "Press the button below to start recording."}
             </p>
 
             {permissionStatus === 'denied' && !error && (
@@ -216,17 +261,25 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
                 <div className={`absolute inset-0 rounded-full bg-sky-500/20 animate-pulse ${isRecording ? 'block' : 'hidden'}`}></div>
                 <button 
                     onClick={isRecording ? stopRecording : startRecording}
-                    disabled={permissionStatus === 'denied' && !isRecording}
+                    disabled={permissionStatus === 'denied' || isProcessing}
                     className={`w-40 h-40 rounded-full text-white flex items-center justify-center transition-all duration-300 shadow-lg ${
-                      isRecording 
+                      isProcessing
+                        ? 'bg-gray-500 cursor-not-allowed animate-pulse'
+                        : isRecording 
                         ? 'bg-red-500 hover:bg-red-600' 
                         : permissionStatus === 'denied' 
                           ? 'bg-gray-400 cursor-not-allowed' 
                           : 'bg-sky-500 hover:bg-sky-600'
                     }`}
-                    aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+                    aria-label={isProcessing ? 'Processing recording' : isRecording ? 'Stop recording' : 'Start recording'}
                 >
-                    {isRecording ? <StopIcon className="h-16 w-16" /> : <MicrophoneIcon className="h-16 w-16" />}
+                    {isProcessing ? (
+                      <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white"></div>
+                    ) : isRecording ? (
+                      <StopIcon className="h-16 w-16" />
+                    ) : (
+                      <MicrophoneIcon className="h-16 w-16" />
+                    )}
                 </button>
             </div>
 
