@@ -60,6 +60,83 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onFileSelect, onViewMeeting
     }
   };
 
+  // Generate a test audio file for debugging
+  const generateTestAudio = () => {
+    // Create a simple 5-second sine wave audio file
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const sampleRate = audioContext.sampleRate;
+    const duration = 5; // 5 seconds
+    const numSamples = sampleRate * duration;
+    
+    const audioBuffer = audioContext.createBuffer(1, numSamples, sampleRate);
+    const channelData = audioBuffer.getChannelData(0);
+    
+    // Generate a 440Hz sine wave (A note)
+    for (let i = 0; i < numSamples; i++) {
+      channelData[i] = Math.sin(2 * Math.PI * 440 * i / sampleRate) * 0.3;
+    }
+    
+    // Convert to WAV blob
+    const wavBlob = audioBufferToWav(audioBuffer);
+    const testFile = new File([wavBlob], 'test-audio.wav', { type: 'audio/wav' });
+    
+    console.log('Generated test audio file:', {
+      name: testFile.name,
+      type: testFile.type,
+      size: testFile.size
+    });
+    
+    onFileSelect(testFile);
+  };
+
+  // Convert AudioBuffer to WAV format
+  const audioBufferToWav = (buffer: AudioBuffer): Blob => {
+    const length = buffer.length;
+    const numberOfChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const bytesPerSample = 2;
+    const blockAlign = numberOfChannels * bytesPerSample;
+    const byteRate = sampleRate * blockAlign;
+    const dataSize = length * blockAlign;
+    const bufferSize = 44 + dataSize;
+    
+    const arrayBuffer = new ArrayBuffer(bufferSize);
+    const view = new DataView(arrayBuffer);
+    
+    // WAV header
+    const writeString = (offset: number, string: string) => {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    };
+    
+    writeString(0, 'RIFF');
+    view.setUint32(4, bufferSize - 8, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numberOfChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bytesPerSample * 8, true);
+    writeString(36, 'data');
+    view.setUint32(40, dataSize, true);
+    
+    // Convert audio data
+    let offset = 44;
+    for (let i = 0; i < length; i++) {
+      for (let channel = 0; channel < numberOfChannels; channel++) {
+        const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
+        view.setInt16(offset, sample * 0x7FFF, true);
+        offset += 2;
+      }
+    }
+    
+    return new Blob([arrayBuffer], { type: 'audio/wav' });
+  };
+
   const totalMinutesTranscribed = Math.floor(meetings.reduce((acc, meeting) => acc + (meeting.durationSeconds || 0), 0) / 60);
   const totalMeetings = meetings.length;
 
@@ -115,6 +192,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onFileSelect, onViewMeeting
           title="Record Audio"
           subtitle="Capture a new meeting"
           ariaLabel="Record a new audio meeting"
+        />
+        
+        {/* Test Audio Button for Debugging */}
+        <ActionCard
+          onClick={generateTestAudio}
+          icon={<div className="h-12 w-12 mb-4 flex items-center justify-center text-2xl">🎵</div>}
+          title="Test Audio"
+          subtitle="Generate sample audio"
+          ariaLabel="Test with generated audio file"
         />
         <div className="space-y-4">
             <StatCard title="Minutes Transcribed" value={`${totalMinutesTranscribed} min`} total={`${maxMinutes} min`} />
