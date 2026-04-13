@@ -10,6 +10,7 @@ import { SummaryIcon } from './icons/SummaryIcon';
 import { CopyIcon } from './icons/CopyIcon';
 import { TranslateIcon } from './icons/TranslateIcon';
 import { Spinner } from './ui/Spinner';
+import { slackService } from '../services/slackService';
 
 interface TranscriptionPageProps {
   meeting: Meeting;
@@ -59,6 +60,8 @@ const TranscriptionPage: React.FC<TranscriptionPageProps> = ({ meeting, user, on
   const [activeTab, setActiveTab] = useState<'summary' | 'transcript' | 'translate'>('summary');
   const [targetLanguage, setTargetLanguage] = useState('Spanish');
   const [isTranslating, setIsTranslating] = useState(false);
+  const [sendingToSlack, setSendingToSlack] = useState(false);
+  const [slackMessage, setSlackMessage] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   
   const { id, transcript, summary: magicSummary, audioUrl, durationSeconds, translatedSummary, startTime, endTime } = meeting;
@@ -121,6 +124,41 @@ const TranscriptionPage: React.FC<TranscriptionPageProps> = ({ meeting, user, on
       }
   };
 
+  const handleSendToSlack = async () => {
+      if (!magicSummary) {
+          setSlackMessage('No summary available to send');
+          return;
+      }
+
+      setSendingToSlack(true);
+      setSlackMessage(null);
+
+      try {
+          const success = await slackService.sendMeetingSummary({
+              title: meeting.title,
+              duration: meeting.duration,
+              attendees: [], // Could be enhanced to include actual attendees
+              summary: magicSummary.executiveSummary,
+              actionItems: magicSummary.actionItems,
+              keyDecisions: magicSummary.keyDecisions,
+              recordedAt: meeting.startTime,
+              meetingUrl: window.location.href,
+          });
+
+          if (success) {
+              setSlackMessage('✅ Summary sent to Slack!');
+              setTimeout(() => setSlackMessage(null), 3000);
+          } else {
+              setSlackMessage('❌ Failed to send to Slack. Check your configuration.');
+          }
+      } catch (error) {
+          console.error('Error sending to Slack:', error);
+          setSlackMessage('❌ Error sending to Slack');
+      } finally {
+          setSendingToSlack(false);
+      }
+  };
+
   const progressPercentage = durationSeconds > 0 ? (currentTime / durationSeconds) * 100 : 0;
   
   const formatMeetingTime = (isoString: string) => {
@@ -173,16 +211,48 @@ const TranscriptionPage: React.FC<TranscriptionPageProps> = ({ meeting, user, on
         </button>
 
         <div className="glass-premium p-4 sm:p-6 rounded-xl">
-          <h2 className="text-xl sm:text-2xl font-bold text-neutral-100 truncate">{meeting.title}</h2>
-          <div className="text-xs sm:text-sm text-neutral-400 mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span>{new Date(startTime).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-            <span className="hidden sm:inline text-neutral-600">&middot;</span>
-            <span>Start: {formatMeetingTime(startTime)}</span>
-            <span className="hidden md:inline text-neutral-600">&middot;</span>
-            <span>End: {formatMeetingTime(endTime)}</span>
-            <span className="hidden md:inline text-neutral-600">&middot;</span>
-            <span>Duration: {meeting.duration}</span>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <h2 className="text-xl sm:text-2xl font-bold text-neutral-100 truncate">{meeting.title}</h2>
+              <div className="text-xs sm:text-sm text-neutral-400 mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span>{new Date(startTime).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                <span className="hidden sm:inline text-neutral-600">&middot;</span>
+                <span>Start: {formatMeetingTime(startTime)}</span>
+                <span className="hidden md:inline text-neutral-600">&middot;</span>
+                <span>End: {formatMeetingTime(endTime)}</span>
+                <span className="hidden md:inline text-neutral-600">&middot;</span>
+                <span>Duration: {meeting.duration}</span>
+              </div>
+            </div>
+            {/* Slack Send Button */}
+            {magicSummary && (
+              <button
+                onClick={handleSendToSlack}
+                disabled={sendingToSlack}
+                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-all whitespace-nowrap flex items-center gap-2"
+                title="Send meeting summary to Slack"
+              >
+                {sendingToSlack ? (
+                  <>
+                    <span className="inline-block h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <span>🎯</span>
+                    Send to Slack
+                  </>
+                )}
+              </button>
+            )}
           </div>
+          
+          {/* Slack Status Message */}
+          {slackMessage && (
+            <div className="mt-3 px-3 py-2 bg-purple-500/20 border border-purple-500/30 rounded text-sm text-purple-300">
+              {slackMessage}
+            </div>
+          )}
         </div>
         
         <div className="border-b border-neutral-700/30">
