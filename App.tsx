@@ -9,9 +9,8 @@ import AuthPage from './components/AuthPage';
 import SettingsModal from './components/SettingsModal';
 import AdminDashboard from './components/AdminDashboard';
 import Credits from './components/Credits';
-import ApiKeySetup from './components/ApiKeySetup';
 import { Meeting, MagicSummary, User, SubscriptionPlan, UserSettings } from './types';
-import { PLAN_LIMITS } from './constants';
+import { PLAN_LIMITS, DEFAULT_MODEL } from './constants';
 import Header from './components/Header';
 import ProcessingOverlay from './components/ProcessingOverlay';
 import { transcribeAudio, generateMeetingSummary, translateSummary } from './services/geminiService';
@@ -37,7 +36,11 @@ const createGuestUser = (): User => {
         email: 'Guest',
         subscription: 'Free',
         meetings: [],
-        isGuest: true
+        isGuest: true,
+        settings: {
+            selectedModel: DEFAULT_MODEL,
+            apiKeys: {}
+        }
     };
 };
 
@@ -46,8 +49,7 @@ const getAudioMetadata = (file: File): Promise<{ duration: number; url: string }
         console.log('Loading audio metadata for file:', {
             name: file.name,
             type: file.type,
-            size: file.size,
-            lastModified: new Date(file.lastModified).toISOString()
+            size: file.size
         });
 
         // Check file size (max 100MB)
@@ -66,130 +68,35 @@ const getAudioMetadata = (file: File): Promise<{ duration: number; url: string }
         const url = window.URL.createObjectURL(file);
         const audio = document.createElement('audio');
         
-        // Set up audio element
         audio.preload = 'metadata';
-        audio.muted = true; // Prevent audio from playing
+        audio.muted = true;
         
-        let resolved = false;
-        let timeoutId: number;
-
         const cleanup = () => {
-            if (timeoutId) clearTimeout(timeoutId);
             audio.removeEventListener('loadedmetadata', onLoad);
             audio.removeEventListener('error', onError);
-            audio.removeEventListener('canplaythrough', onCanPlay);
         };
 
         const onLoad = () => {
-            if (resolved) return;
-            console.log('Audio loadedmetadata event fired:', {
-                duration: audio.duration,
-                readyState: audio.readyState,
-                networkState: audio.networkState
-            });
-            
-            if (isNaN(audio.duration) || audio.duration === 0 || audio.duration === Infinity) {
-                console.warn('Invalid duration detected, waiting for canplaythrough...');
-                return; // Wait for canplaythrough event
-            }
-            
-            resolved = true;
+            console.log('Audio loaded, duration:', audio.duration);
             cleanup();
-            resolve({ duration: audio.duration, url });
+            // Accept any valid duration, including very short ones
+            const duration = isNaN(audio.duration) || audio.duration <= 0 ? 1 : audio.duration;
+            resolve({ duration, url });
         };
 
-        const onCanPlay = () => {
-            if (resolved) return;
-            console.log('Audio canplaythrough event fired:', {
-                duration: audio.duration,
-                readyState: audio.readyState
-            });
-            
-            if (isNaN(audio.duration) || audio.duration === 0 || audio.duration === Infinity) {
-                resolved = true;
-                cleanup();
-                window.URL.revokeObjectURL(url);
-                reject('Invalid audio file: duration could not be determined. The file may be corrupted or in an unsupported format.');
-                return;
-            }
-            
-            resolved = true;
-            cleanup();
-            resolve({ duration: audio.duration, url });
-        };
-
-        const onError = (event: any) => {
-            if (resolved) return;
-            console.error('Audio loading error:', {
-                error: event,
-                errorCode: audio.error?.code,
-                errorMessage: audio.error?.message,
-                readyState: audio.readyState,
-                networkState: audio.networkState,
-                fileType: file.type,
-                fileName: file.name
-            });
-            
-            resolved = true;
+        const onError = () => {
+            console.error('Audio loading error');
             cleanup();
             window.URL.revokeObjectURL(url);
-            
-            let errorMessage = 'Failed to load audio file.';
-            if (audio.error) {
-                switch (audio.error.code) {
-                    case MediaError.MEDIA_ERR_ABORTED:
-                        errorMessage = 'Audio loading was aborted.';
-                        break;
-                    case MediaError.MEDIA_ERR_NETWORK:
-                        errorMessage = 'Network error while loading audio.';
-                        break;
-                    case MediaError.MEDIA_ERR_DECODE:
-                        errorMessage = 'Audio file format not supported or corrupted.';
-                        break;
-                    case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-                        errorMessage = 'Audio format not supported by your browser.';
-                        break;
-                    default:
-                        errorMessage = `Audio error (code ${audio.error.code}): ${audio.error.message || 'Unknown error'}`;
-                }
-            }
-            
-            // For generated test files, provide specific guidance
-            if (file.name.includes('test-audio')) {
-                errorMessage += ' Try using the recording feature or upload a real MP3/WAV file instead.';
-            } else {
-                errorMessage += ' Please try a different audio file or convert to MP3/WAV format.';
-            }
-            
-            reject(errorMessage);
+            reject('Could not load audio file. Please try a different file.');
         };
 
         // Set up event listeners
         audio.addEventListener('loadedmetadata', onLoad);
         audio.addEventListener('error', onError);
-        audio.addEventListener('canplaythrough', onCanPlay);
         
-        // Set up timeout (15 seconds)
-        timeoutId = window.setTimeout(() => {
-            if (resolved) return;
-            console.warn('Audio metadata loading timeout after 15 seconds');
-            resolved = true;
-            cleanup();
-            window.URL.revokeObjectURL(url);
-            reject('Audio file loading timed out. The file may be too large or corrupted. Please try a smaller file or different format.');
-        }, 15000);
-
         // Start loading
-        try {
-            audio.src = url;
-            console.log('Audio src set, starting metadata load...');
-        } catch (error) {
-            console.error('Error setting audio src:', error);
-            resolved = true;
-            cleanup();
-            window.URL.revokeObjectURL(url);
-            reject('Failed to load audio file. Please try a different file.');
-        }
+        audio.src = url;
     });
 };
 
@@ -217,17 +124,6 @@ const App: React.FC = () => {
   const [processingProgressText, setProcessingProgressText] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
-  const [needsApiKey, setNeedsApiKey] = useState(false);
-
-  // Check if API key is available
-  useEffect(() => {
-    // Since we have at least one working API key, allow access
-    setNeedsApiKey(false);
-  }, []);
-
-  const handleApiKeySet = () => {
-    setNeedsApiKey(false);
-  };
 
   // Admin dashboard keyboard shortcut (Ctrl+Alt+A)
   useEffect(() => {
@@ -257,38 +153,12 @@ const App: React.FC = () => {
     
     // Check plan limits before processing
     const currentPlanLimits = PLAN_LIMITS[currentUser.subscription];
-    const totalMinutesTranscribed = Math.floor((currentUser.meetings || []).reduce((acc, meeting) => acc + (meeting.durationSeconds || 0), 0) / 60);
     const totalMeetings = (currentUser.meetings || []).length;
     
     // Check upload limit
     if (currentPlanLimits.uploadsPerMonth !== 'unlimited' && totalMeetings >= currentPlanLimits.uploadsPerMonth) {
       alert(`Upload limit reached! You have used ${totalMeetings}/${currentPlanLimits.uploadsPerMonth} uploads for your ${currentUser.subscription} plan. Please upgrade to continue.`);
       setCurrentPage('pricing');
-      return;
-    }
-    
-    // Estimate audio duration to check transcription limits
-    try {
-      const { duration: estimatedDuration } = await getAudioMetadata(audioFile);
-      
-      // Handle invalid duration (NaN, Infinity, or 0)
-      if (isNaN(estimatedDuration) || estimatedDuration === Infinity || estimatedDuration === 0) {
-        console.warn('Invalid audio duration detected:', estimatedDuration);
-        alert('Unable to determine audio duration. The file may be corrupted or in an unsupported format. Please try recording again or upload a different file.');
-        return;
-      }
-      
-      const estimatedMinutes = Math.ceil(estimatedDuration / 60);
-      
-      if (currentPlanLimits.transcriptionMinutes !== 'unlimited' && 
-          (totalMinutesTranscribed + estimatedMinutes) > currentPlanLimits.transcriptionMinutes) {
-        alert(`Transcription limit would be exceeded! This ${estimatedMinutes}-minute audio would put you at ${totalMinutesTranscribed + estimatedMinutes}/${currentPlanLimits.transcriptionMinutes} minutes for your ${currentUser.subscription} plan. Please upgrade to continue.`);
-        setCurrentPage('pricing');
-        return;
-      }
-    } catch (error) {
-      console.warn("Could not check audio duration for limits:", error);
-      alert('Unable to process audio file. The file may be corrupted or in an unsupported format. Please try recording again or upload a different file.');
       return;
     }
     
@@ -343,7 +213,6 @@ const App: React.FC = () => {
     } catch (error: any) {
         console.error("Processing failed:", error);
         
-        // Better error message handling
         let errorMessage = "Unknown error occurred";
         if (error && typeof error === 'object') {
           if (error.message) {
@@ -355,12 +224,7 @@ const App: React.FC = () => {
           errorMessage = error;
         }
         
-        // Check if it's an API key related error
-        if (errorMessage.includes('API key') || errorMessage.includes('unauthorized') || errorMessage.includes('No API key')) {
-          alert(`🔑 API Key Required\n\nThis demo uses placeholder API keys. To use AudioMax:\n\n1. Get a free Gemini API key from: https://ai.google.dev/\n2. Add it to your browser's localStorage as 'user_api_key'\n3. Or modify the FREE_API_KEYS in freeApiService.ts\n\nError details: ${errorMessage}`);
-        } else {
-          alert(`An error occurred during processing: ${errorMessage}\n\nPlease check the console for more details and ensure your API key is set up correctly.`);
-        }
+        alert(`An error occurred during processing: ${errorMessage}\n\nPlease check the console for more details. If the backend server is not running, start it with: npm run server`);
         
         handleBackToDashboard();
     }
@@ -470,7 +334,10 @@ const App: React.FC = () => {
 
   return (
     <ThemeProvider>
-      <div className={`min-h-screen bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 flex flex-col transition-colors duration-300`}>
+      <div className="min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-850 text-neutral-100 flex flex-col transition-colors duration-300">
+        {/* Background gradient overlay effect */}
+        <div className="fixed inset-0 bg-gradient-to-br from-primary-500/5 via-transparent to-secondary-500/5 pointer-events-none" />
+        
         {currentPage === 'processing' && <ProcessingOverlay steps={processingSteps} currentStep={currentStep} progressText={processingProgressText} />}
         <Header 
           user={currentUser}
@@ -480,15 +347,9 @@ const App: React.FC = () => {
           onPricingClick={() => setCurrentPage('pricing')} 
         />
 
-        {needsApiKey ? (
-          <div className="flex-1 flex items-center justify-center">
-            <ApiKeySetup onApiKeySet={handleApiKeySet} />
-          </div>
-        ) : (
-          <main className="flex-1">
-            {renderPage()}
-          </main>
-        )}
+        <main className="flex-1 relative z-10">
+          {renderPage()}
+        </main>
         
         {/* Admin Dashboard */}
         {isAdminDashboardOpen && (
@@ -496,7 +357,7 @@ const App: React.FC = () => {
         )}
 
         {/* Footer */}
-        <div className="mt-auto">
+        <div className="mt-auto relative z-10">
           <Credits />
         </div>
         

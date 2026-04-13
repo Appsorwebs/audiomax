@@ -1,92 +1,5 @@
-import { GoogleGenAI, Type } from "@google/genai";
 import { TranscriptLine, MagicSummary, User } from "../types.ts";
-import { transcribeAudioWithProvider, generateMeetingSummaryWithProvider } from "./aiService";
-import { freeApiKeyService } from "./freeApiService";
-
-// Check for user's custom API key first, then fall back to free service
-const getUserApiKey = async (userId?: string, audioDurationMinutes: number = 0): Promise<string | null> => {
-  // Check for user's custom API key in environment or settings
-  const customApiKey = process.env.API_KEY || localStorage.getItem('user_api_key');
-  
-  if (customApiKey) {
-    return customApiKey;
-  }
-
-  // Fall back to free API service for registered users
-  if (userId) {
-    const freeApiResult = await freeApiKeyService.getFreeApiKey(userId, audioDurationMinutes);
-    if (freeApiResult.canUse) {
-      return freeApiResult.apiKey;
-    } else {
-      throw new Error(freeApiResult.message);
-    }
-  }
-
-  throw new Error("No API key available. Please add your own Gemini API key or sign up for free access.");
-};
-
-// Create AI instance with dynamic API key
-const createAIInstance = async (userId?: string, audioDurationMinutes: number = 0): Promise<GoogleGenAI> => {
-  const apiKey = await getUserApiKey(userId, audioDurationMinutes);
-  if (!apiKey) {
-    throw new Error("Unable to obtain API key");
-  }
-  return new GoogleGenAI({ apiKey });
-};
-
-// Schema needed for translation function
-const summarySchema = {
-    type: Type.OBJECT,
-    properties: {
-        executiveSummary: {
-            type: Type.STRING,
-            description: "A concise, professional summary of the entire meeting conversation, written in an executive-ready format."
-        },
-        actionItems: {
-            type: Type.ARRAY,
-            description: "A list of all explicit action items mentioned. Each item should be clear and actionable.",
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    item: {
-                        type: Type.STRING,
-                        description: "The specific task or action to be completed."
-                    },
-                    assignee: {
-                        type: Type.STRING,
-                        description: "The person or team assigned to the action item. If not explicitly mentioned, state 'Unassigned'."
-                    }
-                },
-                required: ["item", "assignee"]
-            }
-        },
-        keyDecisions: {
-            type: Type.ARRAY,
-            description: "A detailed list of all key decisions made. For each decision, provide context and the rationale behind it if available in the transcript.",
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    decision: {
-                        type: Type.STRING,
-                        description: "The specific decision that was made."
-                    },
-                    rationale: {
-                        type: Type.STRING,
-                        description: "The reasoning or justification for the decision, as mentioned in the conversation."
-                    }
-                },
-                required: ["decision"]
-            }
-        }
-    },
-    required: ["executiveSummary", "actionItems", "keyDecisions"]
-};
-
-
-const transcribeAudioChunk = async (audioChunk: File | Blob, user: User): Promise<TranscriptLine[]> => {
-    // Use the new AI service that supports multiple providers
-    return await transcribeAudioWithProvider(audioChunk, user);
-};
+import * as backendService from "./backendService";
 
 function bufferToWav(buffer: AudioBuffer): Blob {
     const numOfChan = buffer.numberOfChannels;
@@ -146,7 +59,7 @@ export const transcribeAudio = async (
     onProgress('Decoding audio file...');
     
     // Check file size first - limit to prevent memory issues
-    const MAX_FILE_SIZE_MB = user.subscription === 'Free' ? 25 : 100; // Lower limit for free tier
+    const MAX_FILE_SIZE_MB = user.subscription === 'Free' ? 25 : 100;
     if (audioFile.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
         throw new Error(`File size (${Math.round(audioFile.size / (1024 * 1024))}MB) exceeds the maximum limit of ${MAX_FILE_SIZE_MB}MB${user.subscription === 'Free' ? ' for free tier' : ''}. Please use a smaller file.`);
     }
@@ -165,29 +78,11 @@ export const transcribeAudio = async (
         throw new Error("Failed to decode audio file. Please ensure the file is a valid audio format (MP3, WAV, M4A, etc.).");
     }
 
-    // Calculate actual audio duration in minutes
-    const audioDurationMinutes = Math.ceil(audioBuffer.duration / 60);
-    
-    // Check audio duration for free tier users
-    if (user.subscription === 'Free') {
-        const durationCheck = freeApiKeyService.validateAudioDuration(audioBuffer.duration);
-        if (!durationCheck.valid) {
-            throw new Error(durationCheck.message);
-        }
-    }
-
-    // Validate API access with actual duration before processing
-    try {
-        await createAIInstance(user.email, audioDurationMinutes); // Validate API key availability with duration
-    } catch (error) {
-        throw new Error(`API access error: ${error instanceof Error ? error.message : String(error)}`);
-    }
-
     const CHUNK_DURATION_SECONDS = 59;
     const totalDuration = audioBuffer.duration;
     
-    // Check duration limit based on plan (implement basic limits for now)
-    const MAX_DURATION_MINUTES = 180; // 3 hours max for any plan to prevent crashes
+    // Check duration limit based on plan
+    const MAX_DURATION_MINUTES = 180; // 3 hours max
     if (totalDuration > MAX_DURATION_MINUTES * 60) {
         throw new Error(`Audio duration (${Math.round(totalDuration / 60)} minutes) exceeds the maximum limit of ${MAX_DURATION_MINUTES} minutes. Please use a shorter audio file or split it into smaller segments.`);
     }
@@ -207,7 +102,6 @@ export const transcribeAudio = async (
 
         if (chunkDuration <= 0) continue;
 
-        // Create audio chunk with better memory management
         let chunkBuffer: AudioBuffer;
         try {
             chunkBuffer = audioContext.createBuffer(
@@ -236,15 +130,29 @@ export const transcribeAudio = async (
         
         while (retryCount < MAX_RETRIES) {
             try {
-                chunkTranscript = await transcribeAudioChunk(wavBlob, user);
-                break; // Success, exit retry loop
+                chunkTranscript = await backendService.transcribeAudioChunk(
+                    wavBlob, 
+                    i, 
+                    user.email, 
+                    onProgress,
+                    user.settings?.selectedModel,
+                    user.settings?.apiKeys
+                );
+                break;
             } catch (error) {
                 retryCount++;
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                
+                // Check for quota/rate limit errors - don't retry these
+                if (errorMessage.includes('quota') || errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+                    throw new Error(`API quota exceeded. ${errorMessage.includes('gemini') || errorMessage.includes('google') ? 'Try switching to gemini-1.5-flash in Settings, or use a different provider (OpenAI/Anthropic).' : 'Please check your API usage limits or try a different model.'}`);
+                }
+                
                 if (retryCount >= MAX_RETRIES) {
-                    throw new Error(`Failed to transcribe chunk ${i + 1} after ${MAX_RETRIES} attempts: ${error instanceof Error ? error.message : String(error)}`);
+                    throw new Error(`Failed to transcribe chunk ${i + 1} after ${MAX_RETRIES} attempts: ${errorMessage}`);
                 }
                 onProgress(`Retrying chunk ${i + 1} (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
-                await new Promise(resolve => setTimeout(resolve, 2000 * retryCount)); // Progressive delay
+                await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
             }
         }
 
@@ -267,16 +175,13 @@ export const transcribeAudio = async (
         
         combinedTranscript.push(...adjustedTranscript);
         
-        // Clear chunk buffer to free memory
         chunkBuffer = null as any;
         
-        // Add small delay between chunks to prevent overwhelming the API
         if (i < numberOfChunks - 1) {
             await new Promise(resolve => setTimeout(resolve, 500));
         }
     }
     
-    // Clean up audio context
     try {
         await audioContext.close();
     } catch (error) {
@@ -288,46 +193,21 @@ export const transcribeAudio = async (
 };
 
 export const generateMeetingSummary = async (transcript: TranscriptLine[], user: User): Promise<MagicSummary> => {
-  // Use the new AI service that supports multiple providers
-  return await generateMeetingSummaryWithProvider(transcript, user);
+    return await backendService.generateMeetingSummary(
+        transcript, 
+        user.email,
+        undefined,
+        user.settings?.selectedModel,
+        user.settings?.apiKeys
+    );
 };
 
 export const translateSummary = async (summary: MagicSummary, targetLanguage: string, user?: User): Promise<MagicSummary> => {
-    const ai = await createAIInstance(user?.email);
-
-    const summaryText = `
-        Executive Summary: ${summary.executiveSummary}
-        Key Decisions: ${summary.keyDecisions.map(d => `${d.decision} (Rationale: ${d.rationale || 'N/A'})`).join('; ')}
-        Action Items: ${summary.actionItems.map(a => `${a.item} (Assignee: ${a.assignee})`).join('; ')}
-    `;
-
-    const prompt = `Translate the following meeting summary text to ${targetLanguage}. Keep the original meaning and professional tone. Respond ONLY with a JSON object that follows the provided schema. Do not add any extra commentary or markdown formatting.
-
-Text to translate:
----
-${summaryText}
----
-`;
-
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: summarySchema,
-            }
-        });
-        
-        if (!response.text) {
-            throw new Error(`The model returned no content while translating to ${targetLanguage}.`);
-        }
-
-        const jsonText = response.text.trim();
-        return JSON.parse(jsonText) as MagicSummary;
-
-    } catch (error) {
-        console.error(`Error translating summary with Gemini to ${targetLanguage}:`, error);
-        throw new Error(`Failed to translate summary to ${targetLanguage}.`);
-    }
+    return await backendService.translateSummary(
+        summary, 
+        targetLanguage,
+        undefined,
+        user?.settings?.selectedModel,
+        user?.settings?.apiKeys
+    );
 };

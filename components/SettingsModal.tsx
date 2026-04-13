@@ -30,7 +30,7 @@ const ProviderSection: React.FC<{
         className="w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-sky-500 focus:border-sky-500"
       />
       <p className="text-xs text-slate-500 dark:text-slate-400">
-        {provider === 'google' && 'Get your key from Google AI Studio: https://makersuite.google.com/app/apikey'}
+        {provider === 'google' && 'Get your key from Google AI Studio: https://aistudio.google.com/apikey'}
         {provider === 'anthropic' && 'Get your key from Anthropic Console: https://console.anthropic.com/'}
         {provider === 'openai' && 'Get your key from OpenAI Platform: https://platform.openai.com/api-keys'}
       </p>
@@ -67,8 +67,8 @@ const ModelCard: React.FC<{
     </div>
     <p className="text-sm text-slate-600 dark:text-slate-400">{model.description}</p>
     {!hasApiKey && (
-      <p className="text-xs text-red-500 dark:text-red-400 mt-2">
-        API key required for {model.provider.charAt(0).toUpperCase() + model.provider.slice(1)}
+      <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
+        ⚙️ Requires API key configuration
       </p>
     )}
   </button>
@@ -97,6 +97,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ user, isOpen, onClose, on
     AVAILABLE_AI_MODELS.filter(model => model.provider === provider);
 
   const hasApiKeyForProvider = (provider: string): boolean => {
+    // Check if user has provided their own API key
     const key = apiKeys[provider as keyof typeof apiKeys];
     return Boolean(key && key.trim().length > 0);
   };
@@ -122,7 +123,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ user, isOpen, onClose, on
           <div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">API Keys</h3>
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
-              Configure your API keys to use different AI providers. Your keys are stored locally and never sent to our servers.
+              Add your AI provider API keys below. Your keys are stored locally in your browser and sent directly to the backend server - they are never stored on any external servers.
             </p>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

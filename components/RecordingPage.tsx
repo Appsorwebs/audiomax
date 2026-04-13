@@ -13,14 +13,12 @@ const formatTime = (seconds: number) => {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 };
 
-// Cross-platform audio format detection
 const getSupportedMimeType = (): string => {
   const types = [
     'audio/webm;codecs=opus',
     'audio/webm',
     'audio/mp4',
-    'audio/ogg;codecs=opus',
-    'audio/wav'
+    'audio/ogg;codecs=opus'
   ];
   
   for (const type of types) {
@@ -28,14 +26,13 @@ const getSupportedMimeType = (): string => {
       return type;
     }
   }
-  return 'audio/webm'; // fallback
+  return 'audio/webm';
 };
 
 const getFileExtension = (mimeType: string): string => {
   if (mimeType.includes('webm')) return 'webm';
   if (mimeType.includes('mp4')) return 'm4a';
   if (mimeType.includes('ogg')) return 'ogg';
-  if (mimeType.includes('wav')) return 'wav';
   return 'webm';
 };
 
@@ -44,407 +41,329 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
   const [isProcessing, setIsProcessing] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [permissionStatus, setPermissionStatus] = useState<'unknown' | 'granted' | 'denied'>('unknown');
-  
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const timerIntervalRef = useRef<number | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const recordingStartTimeRef = useRef<number | null>(null);
+  const processCallbackRef = useRef<(() => void) | null>(null);
 
-  // Check microphone permission status
-  useEffect(() => {
-    const checkPermission = async () => {
-      try {
-        // Check if we're on HTTPS or localhost
-        if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-          setError('Audio recording requires HTTPS or localhost. Please use a secure connection.');
-          return;
-        }
-
-        if (navigator.permissions) {
-          const permission = await navigator.permissions.query({ name: 'microphone' as PermissionName });
-          setPermissionStatus(permission.state as 'granted' | 'denied');
-          
-          permission.onchange = () => {
-            setPermissionStatus(permission.state as 'granted' | 'denied');
-          };
-        }
-      } catch (err) {
-        console.log('Permission check not supported, will check on first use');
-      }
-    };
-
-    checkPermission();
-  }, []);
-
+  // Cleanup function
   const cleanup = () => {
-    // Stop timer
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-      timerIntervalRef.current = null;
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
     }
-    
-    // Stop audio stream
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
-    
-    // Clear MediaRecorder reference
     mediaRecorderRef.current = null;
-    
-    // Clear recording start time
-    recordingStartTimeRef.current = null;
+    audioChunksRef.current = [];
   };
 
-  // Helper function to get actual recording duration in seconds
-  const getActualRecordingDuration = (): number => {
-    if (!recordingStartTimeRef.current) return 0;
-    return (Date.now() - recordingStartTimeRef.current) / 1000;
-  };
-
+  // Start recording
   const startRecording = async () => {
-    if (isRecording || isProcessing) return;
-    
     try {
       setError(null);
-      setElapsedTime(0);
-      audioChunksRef.current = [];
       
-      // Request microphone access
-      const constraints: MediaStreamConstraints = {
+      // Get microphone permission
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          sampleRate: 44100,
-          channelCount: 1,
         }
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
-      setPermissionStatus('granted');
-      
-      const mimeType = getSupportedMimeType();
-      console.log('Starting recording with MIME type:', mimeType);
-      
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType,
-        audioBitsPerSecond: 128000,
       });
       
-      mediaRecorderRef.current = mediaRecorder;
+      streamRef.current = stream;
       
+      // Set up MediaRecorder
+      const mimeType = getSupportedMimeType();
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+      
+      // Handle data
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
       };
       
+      // Handle stop
       mediaRecorder.onstop = () => {
-        console.log('MediaRecorder stopped naturally');
-        const actualDuration = getActualRecordingDuration();
-        const hasReasonableRecordingTime = actualDuration >= 1;
-        const hasAudioChunks = audioChunksRef.current.length > 0;
-        
-        console.log('Natural stop - Recording stats:', {
-          elapsedTime,
-          actualDuration,
-          hasReasonableRecordingTime,
-          hasAudioChunks,
-          chunks: audioChunksRef.current.length
-        });
-        
-        if (hasReasonableRecordingTime && hasAudioChunks) {
-          createAudioFile();
-        } else {
-          console.log('Natural stop: Recording too short or no data, resetting');
-          resetRecording();
-          setError('Recording too short. Please record for at least 1 second.');
+        console.log('📹 MediaRecorder onstop event fired');
+        // Call the processing callback if available
+        if (processCallbackRef.current) {
+          processCallbackRef.current();
         }
       };
-
-      mediaRecorder.onerror = (event) => {
-        console.error('MediaRecorder error:', event);
-        setError('Recording failed. Please try again.');
-        resetRecording();
-      };
-
+      
       // Start recording
       mediaRecorder.start();
       setIsRecording(true);
-      recordingStartTimeRef.current = Date.now(); // Track actual start time
+      setElapsedTime(0);
       
       // Start timer
-      timerIntervalRef.current = window.setInterval(() => {
+      timerRef.current = setInterval(() => {
         setElapsedTime(prev => prev + 1);
       }, 1000);
-
-    } catch (err: any) {
-      console.error("Error starting recording:", err);
-      setPermissionStatus('denied');
       
+    } catch (err: any) {
+      console.error('Recording error:', err);
       if (err.name === 'NotAllowedError') {
         setError('Microphone access denied. Please allow microphone access and try again.');
-      } else if (err.name === 'NotFoundError') {
-        setError('No microphone found. Please connect a microphone and try again.');
-      } else if (err.name === 'NotSupportedError') {
-        setError('Audio recording is not supported in this browser.');
       } else {
         setError('Could not access microphone. Please try again.');
       }
+      cleanup();
     }
   };
 
+  // Stop recording
   const stopRecording = () => {
-    console.log('STOP BUTTON CLICKED - FORCE STOPPING EVERYTHING');
+    console.log('🔴 STOP BUTTON CLICKED - Starting force stop sequence');
+    console.log('Current state:', { isRecording, isProcessing, chunks: audioChunksRef.current.length });
     
-    // IMMEDIATELY force stop - no guards or checks
+    // Define the processing callback
+    const doProcess = () => {
+      console.log('🔧 Processing audio file...');
+      console.log('Audio chunks available:', audioChunksRef.current.length);
+      
+      // If no chunks, show error
+      if (audioChunksRef.current.length === 0) {
+        console.log('❌ No audio chunks available');
+        setError('No audio data recorded. Please try again.');
+        setIsProcessing(false);
+        setElapsedTime(0);
+        cleanup();
+        return;
+      }
+      
+      try {
+        const mimeType = getSupportedMimeType();
+        console.log('🎵 Creating blob with mime type:', mimeType);
+        
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        console.log('📦 Blob created, size:', audioBlob.size, 'bytes');
+        
+        if (audioBlob.size < 100) {
+          console.log('❌ Blob too small:', audioBlob.size, 'bytes');
+          setError('Recording too short. Please try again.');
+          setIsProcessing(false);
+          setElapsedTime(0);
+          cleanup();
+          return;
+        }
+        
+        const extension = getFileExtension(mimeType);
+        const audioFile = new File(
+          [audioBlob], 
+          `recording-${Date.now()}.${extension}`, 
+          { type: mimeType }
+        );
+        
+        console.log('✅ Audio file created successfully:');
+        console.log('  - Name:', audioFile.name);
+        console.log('  - Size:', audioFile.size, 'bytes');
+        console.log('  - Type:', audioFile.type);
+        
+        // Clear processing state and clean up
+        setIsProcessing(false);
+        setElapsedTime(0);
+        cleanup();
+        
+        // Call completion handler
+        console.log('🚀 Calling onRecordingComplete...');
+        onRecordingComplete(audioFile);
+        
+      } catch (error) {
+        console.error('❌ Error creating audio file:', error);
+        setError('Failed to create audio file. Please try again.');
+        setIsProcessing(false);
+        setElapsedTime(0);
+        cleanup();
+      }
+    };
+    
+    // Store the callback so onstop can call it
+    processCallbackRef.current = doProcess;
+    
+    // STEP 1: Force immediate state change - no guards whatsoever
     setIsRecording(false);
     setIsProcessing(true);
+    console.log('✅ States changed: isRecording=false, isProcessing=true');
     
-    // Force stop timer immediately
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-      timerIntervalRef.current = null;
-      console.log('Timer stopped');
+    // STEP 2: Force stop timer immediately
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+      console.log('✅ Timer stopped and cleared');
     }
     
-    // Force stop all audio tracks immediately
+    // STEP 3: Force stop all audio tracks FIRST (this is critical)
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => {
+      console.log('🎤 Stopping audio tracks...');
+      streamRef.current.getTracks().forEach((track, index) => {
+        console.log(`Stopping track ${index}:`, track.kind, track.readyState);
         track.stop();
-        console.log('Force stopped track:', track.kind);
       });
       streamRef.current = null;
-      console.log('Stream cleared');
+      console.log('✅ All audio tracks stopped and stream cleared');
     }
     
-    // Check if we have enough recording time to create a valid file
-    const actualDuration = getActualRecordingDuration();
-    const hasReasonableRecordingTime = actualDuration >= 1; // At least 1 second
-    const hasAudioChunks = audioChunksRef.current.length > 0;
-    
-    console.log('Recording stats:', {
-      elapsedTime,
-      actualDuration,
-      hasReasonableRecordingTime,
-      hasAudioChunks,
-      chunks: audioChunksRef.current.length
-    });
-    
-    // Force stop MediaRecorder - no state checking
+    // STEP 4: Handle MediaRecorder (with aggressive fallback)
     if (mediaRecorderRef.current) {
+      console.log('📹 MediaRecorder found, state:', mediaRecorderRef.current.state);
+      
       try {
-        console.log('Current MediaRecorder state:', mediaRecorderRef.current.state);
-        // Stop regardless of state
-        if (mediaRecorderRef.current.state !== 'inactive') {
+        if (mediaRecorderRef.current.state === 'recording') {
+          console.log('📹 Calling MediaRecorder.stop()...');
           mediaRecorderRef.current.stop();
-          console.log('MediaRecorder.stop() called');
-        } else if (hasReasonableRecordingTime && hasAudioChunks) {
-          // Only create file if we have reasonable data
-          createAudioFile();
+          console.log('✅ MediaRecorder.stop() called successfully');
+        } else if (mediaRecorderRef.current.state === 'paused') {
+          console.log('📹 MediaRecorder paused, resuming then stopping...');
+          mediaRecorderRef.current.resume();
+          mediaRecorderRef.current.stop();
         } else {
-          // Just reset for very short recordings
-          console.log('Recording too short, just resetting');
-          resetRecording();
+          console.log('📹 MediaRecorder not recording, processing file manually');
+          doProcess();
         }
       } catch (error) {
-        console.error('Error calling MediaRecorder.stop():', error);
-        if (hasReasonableRecordingTime && hasAudioChunks) {
-          createAudioFile();
-        } else {
-          resetRecording();
-        }
+        console.error('❌ Error with MediaRecorder.stop():', error);
+        console.log('🔧 Falling back to manual file creation');
+        doProcess();
       }
-      
-      // Timeout fallback if onstop doesn't fire within 2 seconds
-      setTimeout(() => {
-        if (isProcessing) {
-          console.log('Force cleanup after 2s timeout');
-          if (hasReasonableRecordingTime && hasAudioChunks) {
-            createAudioFile();
-          } else {
-            console.log('Timeout: Recording too short, resetting');
-            resetRecording();
-          }
-        }
-      }, 2000);
     } else {
-      console.log('No MediaRecorder found');
-      if (hasReasonableRecordingTime && hasAudioChunks) {
-        createAudioFile();
-      } else {
-        console.log('No MediaRecorder and recording too short, resetting');
-        resetRecording();
-      }
+      console.log('📹 No MediaRecorder found, processing file manually');
+      doProcess();
     }
-  };
-
-  const createAudioFile = () => {
-    console.log('createAudioFile called, chunks available:', audioChunksRef.current.length);
     
-    try {
-      if (audioChunksRef.current.length === 0) {
-        console.warn('No audio chunks available, resetting state');
-        resetRecording();
-        setError('Recording stopped but no audio data was captured. Please try again.');
-        return;
+    // STEP 5: Aggressive timeout fallback (1 second)
+    const timeoutId = setTimeout(() => {
+      console.log('⏰ 1-second timeout check...');
+      // Check if we still have chunks - if so, process them
+      if (audioChunksRef.current.length > 0 && processCallbackRef.current) {
+        console.log('🚨 TIMEOUT: MediaRecorder.onstop never fired, forcing completion');
+        processCallbackRef.current();
+      } else {
+        console.log('✅ Already completed or no chunks, timeout not needed');
       }
-      
-      const mimeType = getSupportedMimeType();
-      const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-      
-      // Check if blob has meaningful size (at least 1KB for a very short recording)
-      if (audioBlob.size < 1024) {
-        console.warn('Audio blob too small, likely corrupted:', audioBlob.size, 'bytes');
-        resetRecording();
-        setError('Recording too short or corrupted. Please try recording for at least 1 second.');
-        return;
-      }
-      
-      const extension = getFileExtension(mimeType);
-      const audioFile = new File(
-        [audioBlob], 
-        `recording-${Date.now()}.${extension}`, 
-        { type: mimeType }
-      );
-      
-      console.log('Audio file created:', {
-        name: audioFile.name,
-        size: audioFile.size,
-        type: audioFile.type,
-        chunks: audioChunksRef.current.length
-      });
-      
-      cleanup();
-      setIsProcessing(false);
-      setElapsedTime(0);
-      audioChunksRef.current = [];
-      
-      onRecordingComplete(audioFile);
-      
-    } catch (error) {
-      console.error('Error creating audio file:', error);
-      resetRecording();
-      setError('Failed to create audio file. Please try recording again.');
-    }
-  };
-
-  const resetRecording = () => {
-    cleanup();
-    setIsRecording(false);
-    setIsProcessing(false);
-    setElapsedTime(0);
-    audioChunksRef.current = [];
+    }, 1000);
+    
+    // Store timeout ID for cleanup if needed
+    (window as any).recordingTimeoutId = timeoutId;
   };
 
   // Cleanup on unmount
   useEffect(() => {
-    return () => {
-      cleanup();
-    };
+    return () => cleanup();
   }, []);
-  
+
   return (
-    <div className="flex flex-col items-center justify-center h-full text-center">
-        <button onClick={onBack} className="absolute top-28 left-4 md:left-8 flex items-center text-sm text-sky-600 dark:text-sky-400 hover:text-sky-500 dark:hover:text-sky-300 transition-colors">
-            <BackArrowIcon className="h-4 w-4 mr-2" />
-            Back to Dashboard
-        </button>
+    <div className="w-full min-h-screen flex items-center justify-center">
+      <div className="max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="flex flex-col items-center justify-center text-center relative">
+          <button 
+            onClick={onBack} 
+            className="absolute -top-20 left-0 flex items-center gap-2 text-primary-400 hover:text-primary-300 transition-colors group"
+          >
+            <BackArrowIcon className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
+            <span className="hidden sm:inline">Back to Dashboard</span>
+            <span className="sm:hidden">Back</span>
+          </button>
 
-        <div>
-            <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">
-                {isProcessing ? "Processing Recording..." : isRecording ? "Recording in Progress" : "Ready to Record"}
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-neutral-100 mb-2">
+              {isProcessing ? "Processing Recording..." : isRecording ? "Recording in Progress" : "Ready to Record"}
             </h2>
-            <p className="text-slate-500 dark:text-slate-400 mb-8">
-                {isProcessing ? "Please wait while we process your recording." : isRecording ? "Press the red button below to stop recording." : "Press the button below to start recording."}
+            <p className="text-neutral-400 mb-8 text-sm sm:text-base">
+              {isProcessing 
+                ? "Please wait while we process your recording." 
+                : isRecording 
+                ? "Press the red button below to stop recording." 
+                : "Press the button below to start recording."
+              }
             </p>
 
-            {permissionStatus === 'denied' && !error && (
-              <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                <p className="text-red-600 dark:text-red-400 text-sm">
-                  Microphone access is required for recording. Please enable it in your browser settings.
-                </p>
-              </div>
+            <div className="w-48 h-48 sm:w-64 sm:h-64 rounded-full flex items-center justify-center glass-premium relative mx-auto">
+          {isRecording && (
+            <div className="absolute inset-0 rounded-full bg-sky-500/20 animate-pulse"></div>
+          )}
+          
+          <button 
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={isProcessing}
+            className={`w-32 h-32 sm:w-40 sm:h-40 rounded-full text-white flex items-center justify-center transition-all duration-300 shadow-lg ${
+              isProcessing
+                ? 'bg-neutral-500 cursor-not-allowed opacity-50'
+                : isRecording 
+                ? 'bg-danger-500 hover:bg-danger-600 shadow-danger-500/50' 
+                : 'bg-primary-500 hover:bg-primary-600 shadow-primary-500/50'
+            }`}
+            aria-label={isProcessing ? 'Processing recording' : isRecording ? 'Stop recording' : 'Start recording'}
+          >
+            {isProcessing ? (
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white"></div>
+            ) : isRecording ? (
+              <StopIcon className="h-16 w-16" />
+            ) : (
+              <MicrophoneIcon className="h-16 w-16" />
             )}
-
-            <div className="w-64 h-64 rounded-full flex items-center justify-center bg-slate-200 dark:bg-slate-800/50 relative">
-                <div className={`absolute inset-0 rounded-full bg-sky-500/20 animate-pulse ${isRecording ? 'block' : 'hidden'}`}></div>
-                <button 
-                    onClick={isRecording ? stopRecording : startRecording}
-                    disabled={permissionStatus === 'denied' || isProcessing}
-                    className={`w-40 h-40 rounded-full text-white flex items-center justify-center transition-all duration-300 shadow-lg ${
-                      isProcessing
-                        ? 'bg-gray-500 cursor-not-allowed'
-                        : isRecording 
-                        ? 'bg-red-500 hover:bg-red-600' 
-                        : permissionStatus === 'denied' 
-                          ? 'bg-gray-400 cursor-not-allowed' 
-                          : 'bg-sky-500 hover:bg-sky-600'
-                    }`}
-                    aria-label={isProcessing ? 'Processing recording' : isRecording ? 'Stop recording' : 'Start recording'}
-                >
-                    {isProcessing ? (
-                      <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white"></div>
-                    ) : isRecording ? (
-                      <StopIcon className="h-16 w-16" />
-                    ) : (
-                      <MicrophoneIcon className="h-16 w-16" />
-                    )}
-                </button>
-            </div>
-
-            <p className="text-5xl font-mono font-bold text-slate-900 dark:text-slate-100 mt-8">
-                {formatTime(elapsedTime)}
-            </p>
-
-            {error && (
-              <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg max-w-sm mx-auto">
-                <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
-                <button 
-                  onClick={() => setError(null)}
-                  className="mt-2 text-sm text-red-500 hover:text-red-700 underline"
-                >
-                  Dismiss
-                </button>
-              </div>
-            )}
-
-            {/* Emergency Reset Button - Always available when recording or processing */}
-            {(isRecording || isProcessing) && (
-              <div className="mt-6">
-                <button 
-                  onClick={() => {
-                    console.log('EMERGENCY RESET TRIGGERED');
-                    // Force immediate reset of all states
-                    resetRecording();
-                    setError(null);
-                    // Show brief feedback
-                    setError('Recording cancelled and reset successfully.');
-                    setTimeout(() => setError(null), 3000);
-                  }}
-                  className="px-4 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors border-2 border-red-700"
-                >
-                  🚨 Force Stop & Reset
-                </button>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Use if recording won't stop normally
-                </p>
-              </div>
-            )}
+          </button>
         </div>
+        </div>
+
+        <p className="text-5xl font-mono font-bold text-slate-900 dark:text-slate-100 mt-8">
+          {formatTime(elapsedTime)}
+        </p>
+
+        {error && (
+          <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg max-w-sm mx-auto">
+            <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+            <button 
+              onClick={() => setError(null)}
+              className="mt-2 text-sm text-red-500 hover:text-red-700 underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {/* Emergency Reset Button - for testing */}
+        {(isRecording || isProcessing) && (
+          <div className="mt-6">
+            <button 
+              onClick={() => {
+                console.log('🚨 EMERGENCY RESET TRIGGERED');
+                cleanup();
+                setIsRecording(false);
+                setIsProcessing(false);
+                setElapsedTime(0);
+                setError('Recording reset successfully.');
+                setTimeout(() => setError(null), 3000);
+              }}
+              className="px-4 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors border-2 border-red-700"
+            >
+              🚨 Emergency Reset
+            </button>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Use if recording won't stop
+            </p>
+          </div>
+        )}
+        </div>
+      </div>
     </div>
   );
 };
 
-// Inline StopIcon component
+// Stop icon component
 const StopIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-    <svg {...props} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M6 6h12v12H6z" />
-    </svg>
+  <svg {...props} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M6 6h12v12H6z" />
+  </svg>
 );
 
 export default RecordingPage;

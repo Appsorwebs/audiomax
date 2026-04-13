@@ -48,16 +48,18 @@
 }
 </script>
 <script>
-    // Prevent FOUC for dark mode
-    if (localStorage.getItem('audiomax-theme') === 'dark' || (!('audiomax-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.documentElement.classList.add('dark');
-    } else {
-        document.documentElement.classList.remove('dark');
-    }
+    // Prevent FOUC (Flash of Unstyled Content) for theme
+    const savedTheme = localStorage.getItem('audiomax-theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const theme = savedTheme ? savedTheme : (prefersDark ? 'dark' : 'light');
+    
+    // Apply theme class to html element
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(theme);
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>
-  <body class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">
+  <body class="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors duration-300">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

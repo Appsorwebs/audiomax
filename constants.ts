@@ -4,75 +4,61 @@ import { SubscriptionPlan, PlanLimits, AIModel } from './types';
 export const AVAILABLE_AI_MODELS: AIModel[] = [
   // Google Gemini Series
   {
-    id: 'gemini-2.5-pro',
-    name: 'Gemini 2.5 Pro',
+    id: 'gemini-2.0-flash-exp',
+    name: 'Gemini 2.0 Flash (Experimental)',
     provider: 'google',
-    description: 'Most advanced Gemini model with superior reasoning',
-    costLevel: 'high'
+    description: 'Latest experimental model with audio support',
+    costLevel: 'low'
   },
   {
-    id: 'gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
+    id: 'gemini-1.5-flash',
+    name: 'Gemini 1.5 Flash',
     provider: 'google',
-    description: 'Fast and efficient, great for most tasks',
+    description: 'Fast and efficient with audio support',
     costLevel: 'low'
   },
   {
     id: 'gemini-1.5-pro',
     name: 'Gemini 1.5 Pro',
     provider: 'google',
-    description: 'Previous generation flagship model',
+    description: 'Previous generation with audio support',
     costLevel: 'medium'
   },
   
-  // Anthropic Claude Series
-  {
-    id: 'claude-sonnet-4',
-    name: 'Claude Sonnet 4',
-    provider: 'anthropic',
-    description: 'Latest high-performance coding/agent model',
-    costLevel: 'high'
-  },
-  {
-    id: 'claude-sonnet-3.7',
-    name: 'Claude Sonnet 3.7',
-    provider: 'anthropic',
-    description: 'Predecessor to Sonnet 4, still very capable',
-    costLevel: 'medium'
-  },
-  {
-    id: 'claude-opus-4',
-    name: 'Claude Opus 4',
-    provider: 'anthropic',
-    description: 'Advanced agentic and coding model',
-    costLevel: 'high'
-  },
-  
-  // OpenAI ChatGPT Series
-  {
-    id: 'gpt-4o-agent',
-    name: 'ChatGPT Agent (GPT-4o)',
-    provider: 'openai',
-    description: 'Powered by GPT-4o with agent capabilities',
-    costLevel: 'high'
-  },
+  // OpenAI Series (uses Whisper for audio)
   {
     id: 'gpt-4o',
-    name: 'GPT-4o',
+    name: 'GPT-4o (with Whisper)',
     provider: 'openai',
-    description: 'Multimodal flagship with agent capabilities',
+    description: 'Uses Whisper for transcription + GPT-4o for analysis',
     costLevel: 'high'
   },
   {
     id: 'gpt-4',
-    name: 'GPT-4',
+    name: 'GPT-4 (with Whisper)',
     provider: 'openai',
-    description: 'Prior model, still widely used',
+    description: 'Uses Whisper for transcription + GPT-4 for analysis',
+    costLevel: 'medium'
+  },
+  
+  // Anthropic Claude Series (text-only, no audio transcription)
+  {
+    id: 'claude-sonnet-4',
+    name: 'Claude Sonnet 4 (Text Only)',
+    provider: 'anthropic',
+    description: 'For summary/translation only (no audio transcription)',
+    costLevel: 'high'
+  },
+  {
+    id: 'claude-sonnet-3.7',
+    name: 'Claude Sonnet 3.7 (Text Only)',
+    provider: 'anthropic',
+    description: 'For summary/translation only (no audio transcription)',
     costLevel: 'medium'
   }
 ];
 
-export const DEFAULT_MODEL = 'gemini-2.5-flash';
+export const DEFAULT_MODEL = 'gemini-2.0-flash-exp';
 
 export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimits> = {
   'Free': {

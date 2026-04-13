@@ -44,18 +44,20 @@ const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] p-4">
+    <div className="w-full min-h-screen flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-            <LogoIcon className="h-12 w-12 text-sky-500 dark:text-sky-400 mx-auto" />
-            <h1 className="text-3xl font-bold mt-4 text-slate-900 dark:text-slate-100">Welcome to AudioMax</h1>
-            <p className="text-slate-500 dark:text-slate-400">{isLogin ? 'Sign in to your account' : 'Create an account to get started'}</p>
+          <div className="p-3 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-xl inline-block">
+            <LogoIcon className="h-10 w-10 text-white" />
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold mt-4 text-neutral-100">Welcome to AudioMax</h1>
+          <p className="text-neutral-400">{isLogin ? 'Sign in to your account' : 'Create an account to get started'}</p>
         </div>
 
-        <div className="bg-slate-100 dark:bg-slate-800/50 p-8 rounded-lg shadow-md">
+        <div className="glass-premium p-6 sm:p-8 rounded-xl">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              <label htmlFor="email" className="form-label">
                 Email Address
               </label>
               <input
@@ -65,11 +67,11 @@ const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder="demo@audiomax.com"
-                className="mt-1 block w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-sky-500 focus:border-sky-500"
+                className="form-input"
               />
             </div>
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              <label htmlFor="password" className="form-label">
                 Password
               </label>
               <input
@@ -79,23 +81,23 @@ const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 placeholder="demouser123"
-                className="mt-1 block w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-sky-500 focus:border-sky-500"
+                className="form-input"
               />
             </div>
 
-            {error && <p className="text-sm text-red-500 dark:text-red-400 text-center">{error}</p>}
+            {error && <p className="text-sm text-danger-300 text-center">{error}</p>}
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:bg-sky-400/50"
+              className="btn btn-gradient w-full text-sm"
             >
               {isLoading ? <Spinner className="h-5 w-5" /> : (isLogin ? 'Sign In' : 'Sign Up')}
             </button>
           </form>
 
           <div className="mt-6 text-center">
-            <button onClick={() => setIsLogin(!isLogin)} className="text-sm text-sky-600 dark:text-sky-400 hover:underline">
+            <button onClick={() => setIsLogin(!isLogin)} className="text-sm text-primary-400 hover:text-primary-300 transition-colors">
               {isLogin ? "Don't have an account? Sign Up" : 'Already have an account? Sign In'}
             </button>
           </div>

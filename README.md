@@ -1,26 +1,53 @@
-# Run and# 🎙️ AudioMax by AppsOrWebs Limited
+# 🎙️ AudioMax by AppsOrWebs Limited
 
-## AI-Powered Audio Transcription & Meeting Analysis
-
-# 🎙️ AudioMax - AI-Powered Audio Transcription
+## 🌟 AI-Powered Audio Transcription & Meeting Analysis
 
 [![React](https://img.shields.io/badge/React-19.1.0-blue.svg)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7.2-blue.svg)](https://www.typescriptlang.org/)
 [![Capacitor](https://img.shields.io/badge/Capacitor-7.4.3-purple.svg)](https://capacitorjs.com/)
 [![Vite](https://img.shields.io/badge/Vite-6.2.0-yellow.svg)](https://vitejs.dev/)
+[![2026 Standard](https://img.shields.io/badge/Design-2026%20Standard-success.svg)]()
 
-AudioMax is a cutting-edge AI-powered audio transcription and meeting analysis application developed by **AppsOrWebs Limited**. Transform your audio recordings into accurate transcripts, intelligent summaries, and actionable insights.
+**AudioMax** is a world-class, 2026 standard AI-powered audio transcription and meeting analysis application developed by **AppsOrWebs Limited**. Transform your audio recordings into accurate transcripts, intelligent summaries, and actionable insights with a **stunning premium UI**.
+
+---
 
 ## ✨ Features
 
+### 🎯 Core Functionality
 - 🎯 **AI-Powered Transcription** - Convert audio to text with high accuracy using Google Gemini AI
 - 🤖 **Smart Meeting Summaries** - Generate intelligent summaries with key points and action items
 - 🌍 **Multi-Language Translation** - Translate summaries to different languages
 - 📱 **Cross-Platform** - Available on Web, iOS, and Android
 - 🔐 **Secure Authentication** - User accounts with admin notification system
-- 🌙 **Dark/Light Theme** - Beautiful UI with theme switching
 - 📊 **Meeting Analytics** - Track and organize your meeting history
 - 💾 **Cloud Storage** - Secure storage of transcriptions and summaries
+
+### 🎨 Premium UI/UX (2026 Standard)
+- ✨ **Glassmorphism Design** - Frosted glass effects with beautiful transparency
+- 🎭 **Neumorphic Elements** - Soft, tactile 3D design elements
+- 🌈 **Gradient-Rich Interface** - Modern color gradients throughout
+- 💫 **Advanced Micro-interactions** - Smooth hover effects, scale transitions, glow effects
+- 🎬 **Premium Animations** - Slide-ins, fade-ins, pulse effects, shimmer loading
+- 🌙 **Dark Theme Native** - Designed dark-first for eye comfort
+- 📱 **Fully Responsive** - Perfect on mobile, tablet, and desktop
+- ♿ **Accessibility-First** - ARIA labels, keyboard navigation, focus states
+
+---
+
+## 🎨 Design Showcase
+
+Our 2026 standard design features:
+- **Glass-morphic cards** with backdrop blur
+- **Gradient buttons** with glow effects
+- **Premium stat cards** with trend indicators
+- **Modern processing overlay** with animated progress
+- **Smooth page transitions** and hover animations
+- **Professional color palette** optimized for dark themes
+
+For detailed design documentation, see [UI_UPGRADE_GUIDE.md](./UI_UPGRADE_GUIDE.md)
+
+---
 
 ## 🚀 Quick Start
 

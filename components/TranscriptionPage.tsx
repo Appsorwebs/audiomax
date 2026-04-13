@@ -164,30 +164,31 @@ const TranscriptionPage: React.FC<TranscriptionPageProps> = ({ meeting, user, on
   );
 
   return (
-    <div>
-      <audio ref={audioRef} src={audioUrl} preload="auto"></audio>
-      <button onClick={onBack} className="flex items-center text-sm text-sky-600 dark:text-sky-400 hover:text-sky-500 dark:hover:text-sky-300 transition-colors mb-6">
-        <BackArrowIcon className="h-4 w-4 mr-2" />
-        Back to Dashboard
-      </button>
+    <div className="w-full">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-6">
+        <audio ref={audioRef} src={audioUrl} preload="auto"></audio>
+        <button onClick={onBack} className="flex items-center gap-2 text-primary-400 hover:text-primary-300 transition-colors group">
+          <BackArrowIcon className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
+          Back to Dashboard
+        </button>
 
-      <div className="bg-slate-100 dark:bg-slate-800/50 rounded-lg p-6 mb-8">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 truncate">{meeting.title}</h2>
-        <div className="text-sm text-slate-500 dark:text-slate-400 mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+        <div className="glass-premium p-4 sm:p-6 rounded-xl">
+          <h2 className="text-xl sm:text-2xl font-bold text-neutral-100 truncate">{meeting.title}</h2>
+          <div className="text-xs sm:text-sm text-neutral-400 mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
             <span>{new Date(startTime).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-            <span className="hidden md:inline text-slate-300 dark:text-slate-600">&middot;</span>
+            <span className="hidden sm:inline text-neutral-600">&middot;</span>
             <span>Start: {formatMeetingTime(startTime)}</span>
-            <span className="hidden md:inline text-slate-300 dark:text-slate-600">&middot;</span>
+            <span className="hidden md:inline text-neutral-600">&middot;</span>
             <span>End: {formatMeetingTime(endTime)}</span>
-            <span className="hidden md:inline text-slate-300 dark:text-slate-600">&middot;</span>
+            <span className="hidden md:inline text-neutral-600">&middot;</span>
             <span>Duration: {meeting.duration}</span>
+          </div>
         </div>
-      </div>
-      
-      <div className="mb-6 border-b border-slate-200 dark:border-slate-700">
-          <nav className="flex space-x-1" aria-label="Tabs">
-              <button onClick={() => setActiveTab('summary')} className={`px-3 py-2 font-medium text-sm rounded-t-md transition-colors ${activeTab === 'summary' ? 'bg-white dark:bg-slate-800/50 text-sky-600 dark:text-sky-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>Magic Summary</button>
-              <button onClick={() => setActiveTab('transcript')} className={`px-3 py-2 font-medium text-sm rounded-t-md transition-colors ${activeTab === 'transcript' ? 'bg-white dark:bg-slate-800/50 text-sky-600 dark:text-sky-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>Transcript</button>
+        
+        <div className="border-b border-neutral-700/30">
+          <nav className="flex space-x-1 overflow-x-auto" aria-label="Tabs">
+            <button onClick={() => setActiveTab('summary')} className={`px-3 py-2 font-medium text-sm rounded-t-md transition-colors whitespace-nowrap ${activeTab === 'summary' ? 'glass-premium text-primary-400 border-b-2 border-primary-400' : 'text-neutral-400 hover:text-neutral-200 hover:bg-glass-light'}`}>Magic Summary</button>
+            <button onClick={() => setActiveTab('transcript')} className={`px-3 py-2 font-medium text-sm rounded-t-md transition-colors whitespace-nowrap ${activeTab === 'transcript' ? 'glass-premium text-primary-400 border-b-2 border-primary-400' : 'text-neutral-400 hover:text-neutral-200 hover:bg-glass-light'}`}>Transcript</button>
               {canTranslate && (
                 <button onClick={() => setActiveTab('translate')} className={`px-3 py-2 font-medium text-sm rounded-t-md transition-colors ${activeTab === 'translate' ? 'bg-white dark:bg-slate-800/50 text-sky-600 dark:text-sky-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>Translate</button>
               )}
@@ -283,6 +284,7 @@ const TranscriptionPage: React.FC<TranscriptionPageProps> = ({ meeting, user, on
                 </div>
             )}
         </div>
+      </div>
       </div>
     </div>
   );
