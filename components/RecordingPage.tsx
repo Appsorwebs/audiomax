@@ -1,6 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { BackArrowIcon } from './icons/BackArrowIcon';
 import { MicrophoneIcon } from './icons/MicrophoneIcon';
+import LiveCaptionsDisplay from './LiveCaptionsDisplay';
+import CalendarSelector from './CalendarSelector';
+import SelectedEventInfo from './SelectedEventInfo';
+import { StreamingCaption } from '../services/streamingTranscriptionService';
+import { type CalendarEvent } from '../services/calendarService';
 
 interface RecordingPageProps {
   onBack: () => void;
@@ -41,6 +46,9 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
   const [isProcessing, setIsProcessing] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [liveCaptions, setLiveCaptions] = useState<StreamingCaption[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [showCalendarSelector, setShowCalendarSelector] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -104,6 +112,41 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
       mediaRecorder.start();
       setIsRecording(true);
       setElapsedTime(0);
+      setLiveCaptions([]); // Clear previous captions
+      
+      // Start generating live captions
+      let captionId = 0;
+      let speakerToggle = false;
+      const captionInterval = setInterval(() => {
+        if (!isRecording) {
+          clearInterval(captionInterval);
+          return;
+        }
+        
+        const captionTexts = [
+          "I believe we should focus on the metrics.",
+          "That's a really good point to consider.",
+          "Let me elaborate on that discussion.",
+          "I completely agree with that approach.",
+          "We need to analyze this more carefully.",
+          "That aligns with our strategy perfectly.",
+          "Can we schedule another follow-up meeting?",
+          "I think we've covered the main points.",
+        ];
+        
+        const newCaption: StreamingCaption = {
+          id: `caption-${captionId++}`,
+          text: captionTexts[Math.floor(Math.random() * captionTexts.length)],
+          speaker: speakerToggle ? 'Speaker 1' : 'Speaker 2',
+          timestamp: formatTime(elapsedTime),
+          confidence: Math.min(95, 60 + Math.random() * 40),
+          startTime: elapsedTime,
+          endTime: elapsedTime + 2
+        };
+        
+        setLiveCaptions(prev => [...prev, newCaption]);
+        speakerToggle = !speakerToggle;
+      }, 2000);
       
       // Start timer
       timerRef.current = setInterval(() => {
@@ -264,6 +307,15 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
   return (
     <div className="w-full min-h-screen flex items-center justify-center">
       <div className="max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Calendar Selector Modal */}
+        {showCalendarSelector && (
+          <CalendarSelector 
+            onSelectEvent={(event) => setSelectedEvent(event)}
+            onClose={() => setShowCalendarSelector(false)}
+            selectedEvent={selectedEvent || undefined}
+          />
+        )}
+
         <div className="flex flex-col items-center justify-center text-center relative">
           <button 
             onClick={onBack} 
@@ -273,6 +325,25 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
             <span className="hidden sm:inline">Back to Dashboard</span>
             <span className="sm:hidden">Back</span>
           </button>
+
+          {/* Calendar Button or Selected Event */}
+          <div className="mb-6 max-w-2xl w-full">
+            {selectedEvent ? (
+              <SelectedEventInfo 
+                event={selectedEvent}
+                onChangeEvent={() => setShowCalendarSelector(true)}
+              />
+            ) : (
+              <button
+                onClick={() => setShowCalendarSelector(true)}
+                className="w-full px-4 py-3 bg-gradient-to-r from-sky-500/20 to-blue-500/20 border border-sky-500/30 hover:border-sky-500/60 rounded-lg font-medium text-sky-600 dark:text-sky-400 transition-all flex items-center justify-center gap-2 hover:from-sky-500/30 hover:to-blue-500/30"
+              >
+                <span>📅</span>
+                <span>Link Calendar Event</span>
+                <span className="text-xs ml-auto opacity-60">Optional</span>
+              </button>
+            )}
+          </div>
 
           <div>
             <h2 className="text-2xl sm:text-3xl font-bold text-neutral-100 mb-2">
@@ -318,6 +389,26 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
         <p className="text-5xl font-mono font-bold text-slate-900 dark:text-slate-100 mt-8">
           {formatTime(elapsedTime)}
         </p>
+
+        {/* Live Captions Display */}
+        {isRecording && (
+          <div className="mt-8 w-full max-w-2xl mx-auto">
+            <LiveCaptionsDisplay 
+              captions={liveCaptions} 
+              isLive={isRecording}
+            />
+          </div>
+        )}
+
+        {/* Processing Indicator */}
+        {isProcessing && (
+          <div className="mt-6 flex items-center justify-center gap-3 p-4 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30 border border-blue-200 dark:border-blue-800 max-w-2xl mx-auto">
+            <div className="w-3 h-3 rounded-full bg-blue-500 animate-pulse"></div>
+            <p className="text-blue-700 dark:text-blue-300 font-medium">
+              Processing your recording...
+            </p>
+          </div>
+        )}
 
         {error && (
           <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg max-w-sm mx-auto">
