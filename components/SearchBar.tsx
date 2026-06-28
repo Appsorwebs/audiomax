@@ -190,8 +190,8 @@ const SearchBar: React.FC<SearchBarProps> = ({
                   >
                     <div
                       dangerouslySetInnerHTML={{
-                        __html: snippet.highlighted.replaceAll(
-                          '<mark>',
+                        __html: snippet.highlighted.replace(
+                          /<mark>/g,
                           '<span class="bg-yellow-300 dark:bg-yellow-600 text-yellow-900 dark:text-yellow-100 font-bold rounded px-1">'
                         ),
                       }}
