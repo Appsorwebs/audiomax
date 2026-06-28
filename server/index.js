@@ -58,7 +58,7 @@ if (!hasGemini && !hasOpenAI && !hasAnthropic) {
 
 // Helper function to get AI provider and model
 function getProviderAndModel(modelId) {
-  const model = modelId || 'gemini-2.0-flash-exp';
+  const model = modelId || 'gemini-2.5-flash';
   
   if (model.startsWith('gemini')) {
     return { provider: 'google', model, client: geminiAI };
@@ -69,7 +69,7 @@ function getProviderAndModel(modelId) {
   }
   
   // Default to gemini if available
-  return { provider: 'google', model: 'gemini-2.0-flash-exp', client: geminiAI };
+  return { provider: 'google', model: 'gemini-2.5-flash', client: geminiAI };
 }
 
 // Helper function to get API client with user's key if provided

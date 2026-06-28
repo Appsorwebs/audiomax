@@ -4,10 +4,10 @@ import { SubscriptionPlan, PlanLimits, AIModel } from './types';
 export const AVAILABLE_AI_MODELS: AIModel[] = [
   // Google Gemini Series
   {
-    id: 'gemini-2.0-flash-exp',
-    name: 'Gemini 2.0 Flash (Experimental)',
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
     provider: 'google',
-    description: 'Latest experimental model with audio support',
+    description: 'Latest stable model with audio support',
     costLevel: 'low'
   },
   {
@@ -58,7 +58,7 @@ export const AVAILABLE_AI_MODELS: AIModel[] = [
   }
 ];
 
-export const DEFAULT_MODEL = 'gemini-2.0-flash-exp';
+export const DEFAULT_MODEL = 'gemini-2.5-flash';
 
 export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimits> = {
   'Free': {
