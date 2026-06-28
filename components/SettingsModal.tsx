@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { User, UserSettings, AIModel } from '../types';
-import { AVAILABLE_AI_MODELS, DEFAULT_MODEL } from '../constants';
+import { User, UserSettings, AIModel, SubscriptionPlan } from '../types';
+import { AVAILABLE_AI_MODELS, DEFAULT_MODEL, PLAN_LIMITS } from '../constants';
 
 interface SettingsModalProps {
   user: User;
@@ -102,6 +102,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ user, isOpen, onClose, on
     return Boolean(key && key.trim().length > 0);
   };
 
+  const getAllowedProvidersForPlan = (plan: SubscriptionPlan): string[] => {
+    const limits = PLAN_LIMITS[plan];
+    if (limits.features.customAiModels) {
+      return ['google', 'anthropic', 'openai'];
+    }
+    if (plan === 'Pro') {
+      return ['google', 'anthropic'];
+    }
+    return ['google'];
+  };
+
+  const allowedProviders = getAllowedProvidersForPlan(user.subscription);
+
   return (
     <div className="fixed inset-0 bg-slate-900 bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
@@ -127,29 +140,35 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ user, isOpen, onClose, on
             </p>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <ProviderSection
-                title="Google Gemini"
-                provider="google"
-                apiKey={apiKeys.google || ''}
-                onChange={(value) => updateApiKey('google', value)}
-                placeholder="AIzaSy..."
-              />
+              {allowedProviders.includes('google') && (
+                <ProviderSection
+                  title="Google Gemini"
+                  provider="google"
+                  apiKey={apiKeys.google || ''}
+                  onChange={(value) => updateApiKey('google', value)}
+                  placeholder="AIzaSy..."
+                />
+              )}
               
-              <ProviderSection
-                title="Anthropic Claude"
-                provider="anthropic"
-                apiKey={apiKeys.anthropic || ''}
-                onChange={(value) => updateApiKey('anthropic', value)}
-                placeholder="sk-ant..."
-              />
+              {allowedProviders.includes('anthropic') && (
+                <ProviderSection
+                  title="Anthropic Claude"
+                  provider="anthropic"
+                  apiKey={apiKeys.anthropic || ''}
+                  onChange={(value) => updateApiKey('anthropic', value)}
+                  placeholder="sk-ant..."
+                />
+              )}
               
-              <ProviderSection
-                title="OpenAI ChatGPT"
-                provider="openai"
-                apiKey={apiKeys.openai || ''}
-                onChange={(value) => updateApiKey('openai', value)}
-                placeholder="sk-..."
-              />
+              {allowedProviders.includes('openai') && (
+                <ProviderSection
+                  title="OpenAI ChatGPT"
+                  provider="openai"
+                  apiKey={apiKeys.openai || ''}
+                  onChange={(value) => updateApiKey('openai', value)}
+                  placeholder="sk-..."
+                />
+              )}
             </div>
           </div>
 
@@ -161,52 +180,58 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ user, isOpen, onClose, on
             </p>
 
             {/* Google Models */}
-            <div className="mb-6">
-              <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-3">Google Gemini Series</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {getModelsForProvider('google').map(model => (
-                  <ModelCard
-                    key={model.id}
-                    model={model}
-                    isSelected={selectedModel === model.id}
-                    onSelect={() => setSelectedModel(model.id)}
-                    hasApiKey={hasApiKeyForProvider('google')}
-                  />
-                ))}
+            {allowedProviders.includes('google') && (
+              <div className="mb-6">
+                <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-3">Google Gemini Series</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {getModelsForProvider('google').map(model => (
+                    <ModelCard
+                      key={model.id}
+                      model={model}
+                      isSelected={selectedModel === model.id}
+                      onSelect={() => setSelectedModel(model.id)}
+                      hasApiKey={hasApiKeyForProvider('google')}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Anthropic Models */}
-            <div className="mb-6">
-              <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-3">Anthropic Claude Series</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {getModelsForProvider('anthropic').map(model => (
-                  <ModelCard
-                    key={model.id}
-                    model={model}
-                    isSelected={selectedModel === model.id}
-                    onSelect={() => setSelectedModel(model.id)}
-                    hasApiKey={hasApiKeyForProvider('anthropic')}
-                  />
-                ))}
+            {allowedProviders.includes('anthropic') && (
+              <div className="mb-6">
+                <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-3">Anthropic Claude Series</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {getModelsForProvider('anthropic').map(model => (
+                    <ModelCard
+                      key={model.id}
+                      model={model}
+                      isSelected={selectedModel === model.id}
+                      onSelect={() => setSelectedModel(model.id)}
+                      hasApiKey={hasApiKeyForProvider('anthropic')}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* OpenAI Models */}
-            <div className="mb-6">
-              <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-3">OpenAI ChatGPT Series</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {getModelsForProvider('openai').map(model => (
-                  <ModelCard
-                    key={model.id}
-                    model={model}
-                    isSelected={selectedModel === model.id}
-                    onSelect={() => setSelectedModel(model.id)}
-                    hasApiKey={hasApiKeyForProvider('openai')}
-                  />
-                ))}
+            {allowedProviders.includes('openai') && (
+              <div className="mb-6">
+                <h4 className="font-semibold text-slate-800 dark:text-slate-200 mb-3">OpenAI ChatGPT Series</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {getModelsForProvider('openai').map(model => (
+                    <ModelCard
+                      key={model.id}
+                      model={model}
+                      isSelected={selectedModel === model.id}
+                      onSelect={() => setSelectedModel(model.id)}
+                      hasApiKey={hasApiKeyForProvider('openai')}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 

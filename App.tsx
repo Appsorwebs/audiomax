@@ -215,6 +215,16 @@ const App: React.FC = () => {
         const { duration: durationSeconds, url: audioUrl } = await getAudioMetadata(audioFile);
         setCurrentStep(1);
 
+        const audioDurationMinutes = Math.ceil(durationSeconds / 60);
+        const currentPlanLimits = PLAN_LIMITS[currentUser.subscription];
+        const totalMinutesTranscribed = Math.floor((currentUser.meetings || []).reduce((acc, m) => acc + (m.durationSeconds || 0), 0) / 60);
+
+        if (currentPlanLimits.transcriptionMinutes !== 'unlimited' && totalMinutesTranscribed + audioDurationMinutes > currentPlanLimits.transcriptionMinutes) {
+            alert(`Transcription limit reached! This audio is ${audioDurationMinutes} minutes. You have used ${totalMinutesTranscribed}/${currentPlanLimits.transcriptionMinutes} minutes on your ${currentUser.subscription} plan. Please upgrade to continue or use a shorter file.`);
+            handleBackToDashboard();
+            return;
+        }
+
         const onTranscriptionProgress = (message: string) => {
             setProcessingProgressText(message);
         };

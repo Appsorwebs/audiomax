@@ -62,7 +62,7 @@ export const DEFAULT_MODEL = 'gemini-2.0-flash-exp';
 
 export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimits> = {
   'Free': {
-    transcriptionMinutes: 60,
+    transcriptionMinutes: 30,
     uploadsPerMonth: 5,
     features: {
       basicSpeakerSeparation: true,
@@ -83,7 +83,7 @@ export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimits> = {
   },
   'Pro': {
     transcriptionMinutes: 300,
-    uploadsPerMonth: 20,
+    uploadsPerMonth: 50,
     features: {
       basicSpeakerSeparation: true,
       aiAssistedActionItems: true,
@@ -103,7 +103,7 @@ export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimits> = {
   },
   'Super Pro': {
     transcriptionMinutes: 1000,
-    uploadsPerMonth: 'unlimited',
+    uploadsPerMonth: 200,
     features: {
       basicSpeakerSeparation: true,
       aiAssistedActionItems: true,
@@ -112,9 +112,9 @@ export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimits> = {
       textTranslationChars: 50000,
       audioTranslationMinutes: 60,
       voiceIdProfiles: true,
-      unlimitedUploads: true,
+      unlimitedUploads: false,
       realTimeTranslation: true,
-      customAiModels: false,
+      customAiModels: true,
       advancedSecurity: false,
       crossMeetingAnalytics: false,
       customBranding: false,

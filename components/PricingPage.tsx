@@ -35,20 +35,20 @@ const plans: PlanDetails[] = [
         plan: "Free",
         description: "For individuals testing the waters.",
         prices: { monthly: "$0", yearly: "$0" },
-        features: ['60 mins transcription/mo', 'Basic speaker separation', '5 file uploads/mo', 'Community support'],
+        features: ['30 mins transcription/mo', 'Basic speaker separation', '5 file uploads/mo', 'Community support'],
     },
     {
         plan: "Pro",
         description: "For professionals who need more power.",
         prices: { monthly: "$5", yearly: "$30" },
-        features: ['300 mins transcription/mo', 'AI-assisted action items', 'Text Translation (10k chars)', 'Audio Translation (10 mins)', '20 file uploads/mo', 'Priority email support'],
+        features: ['300 mins transcription/mo', 'AI-assisted action items', 'Text Translation (10k chars)', 'Audio Translation (10 mins)', '50 file uploads/mo', 'Priority email support'],
         paypalIds: { monthly: 'YOUR_PRO_MONTHLY_ID', yearly: 'YOUR_PRO_YEARLY_ID' }
     },
     {
         plan: "Super Pro",
         description: "For power users and small teams.",
         prices: { monthly: "$25", yearly: "$150" },
-        features: ['1000 mins transcription/mo', 'Voice ID profiles', 'Text Translation (50k chars)', 'Audio Translation (60 mins)', 'Unlimited uploads', 'Real-time translation'],
+        features: ['1000 mins transcription/mo', 'Voice ID profiles', 'Text Translation (50k chars)', 'Audio Translation (60 mins)', '200 file uploads/mo', 'Real-time translation'],
         paypalIds: { monthly: 'YOUR_SUPERPRO_MONTHLY_ID', yearly: 'YOUR_SUPERPRO_YEARLY_ID' }
     },
     {

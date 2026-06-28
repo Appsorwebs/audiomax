@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { TranscriptLine, MagicSummary, User, AIModel } from "../types";
-import { AVAILABLE_AI_MODELS, DEFAULT_MODEL } from "../constants";
+import { AVAILABLE_AI_MODELS, DEFAULT_MODEL, PLAN_LIMITS } from "../constants";
 
 // Get API key based on provider
 const getApiKey = (user: User, provider: string): string | null => {
@@ -34,10 +34,24 @@ const getApiKey = (user: User, provider: string): string | null => {
 };
 
 // Get selected model for user
+const isModelAllowedForPlan = (model: AIModel, plan: string): boolean => {
+  const limits = PLAN_LIMITS[plan as keyof typeof PLAN_LIMITS];
+  if (!limits) return false;
+  if (limits.features.customAiModels) return true;
+  if (model.provider === 'google') return true;
+  if (plan === 'Pro' && model.provider === 'anthropic') return true;
+  return false;
+};
+
 const getUserModel = (user: User): AIModel => {
   const selectedModelId = user.settings?.selectedModel || DEFAULT_MODEL;
-  return AVAILABLE_AI_MODELS.find(model => model.id === selectedModelId) || 
-         AVAILABLE_AI_MODELS.find(model => model.id === DEFAULT_MODEL)!;
+  const selectedModel = AVAILABLE_AI_MODELS.find(model => model.id === selectedModelId);
+  
+  if (!selectedModel || !isModelAllowedForPlan(selectedModel, user.subscription)) {
+    return AVAILABLE_AI_MODELS.find(model => model.id === DEFAULT_MODEL)!;
+  }
+  
+  return selectedModel;
 };
 
 const summarySchema = {
