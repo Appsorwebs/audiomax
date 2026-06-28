@@ -127,6 +127,14 @@ const formatDuration = (seconds: number) => {
     return `${hStr}${mStr}${sStr}`.trim() || '0s';
 };
 
+const hasConfiguredApiKey = (user: User): boolean => {
+  return Boolean(
+    user.settings?.apiKeys?.google ||
+    localStorage.getItem('user_api_key') ||
+    import.meta.env.VITE_GEMINI_API_KEY
+  );
+};
+
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User>(authService.getCurrentUser() || createGuestUser());
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
@@ -140,12 +148,11 @@ const App: React.FC = () => {
 
   // Check if API key is available
   useEffect(() => {
-    // Since we have at least one working API key, allow access
-    setNeedsApiKey(false);
-  }, []);
+    setNeedsApiKey(!hasConfiguredApiKey(currentUser));
+  }, [currentUser]);
 
   const handleApiKeySet = () => {
-    setNeedsApiKey(false);
+    setNeedsApiKey(!hasConfiguredApiKey(currentUser));
   };
 
   // Admin dashboard keyboard shortcut (Ctrl+Alt+A)
@@ -173,6 +180,12 @@ const App: React.FC = () => {
 
   const handleUploadAndProcess = async (audioFile: File) => {
     if (!currentUser) return;
+
+    if (!hasConfiguredApiKey(currentUser)) {
+      alert('A Gemini API key is required for transcription. Add your key to continue.');
+      setNeedsApiKey(true);
+      return;
+    }
 
     const fileValidation = validateAudioFile(audioFile);
     if (!fileValidation.valid) {
@@ -256,7 +269,8 @@ const App: React.FC = () => {
         
         // Check if it's an API key related error
         if (errorMessage.includes('API key') || errorMessage.includes('unauthorized') || errorMessage.includes('No API key')) {
-          alert(`🔑 API Key Required\n\nThis demo uses placeholder API keys. To use AudioMax:\n\n1. Get a free Gemini API key from: https://ai.google.dev/\n2. Add it to your browser's localStorage as 'user_api_key'\n3. Or modify the FREE_API_KEYS in freeApiService.ts\n\nError details: ${errorMessage}`);
+          alert(`🔑 API Key Required\n\nTo use AudioMax transcription:\n\n1. Get a Gemini API key from: https://ai.google.dev/\n2. Add it in Settings or save it as browser localStorage key 'user_api_key'\n\nError details: ${errorMessage}`);
+          setNeedsApiKey(true);
         } else if (/failed to fetch|network request failed|networkerror|load failed/i.test(errorMessage)) {
           alert(`Network error while contacting Gemini: ${errorMessage}\n\nQuick checks:\n1. Verify internet access\n2. Disable VPN/ad-blocker/firewall rules that block generativelanguage.googleapis.com\n3. Confirm your API key is valid\n\nNote: This app does not require a local backend server for transcription.`);
         } else {

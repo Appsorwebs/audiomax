@@ -6,7 +6,6 @@ import { FileAudioIcon } from './icons/FileAudioIcon';
 import { RightArrowIcon } from './icons/RightArrowIcon';
 import { MicrophoneIcon } from './icons/MicrophoneIcon';
 import { SettingsIcon } from './icons/SettingsIcon';
-import ApiUsageDisplay from './ApiUsageDisplay';
 
 interface DashboardProps {
   user: User;
@@ -106,13 +105,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onFileSelect, onViewMeeting
         </div>
       </div>
 
-      {/* API Usage Display for Free Users */}
-      <div style={{animation: 'fade-in-up 0.6s ease-out 0.1s both'}}>
-        <ApiUsageDisplay user={user} onUpgrade={onUpgrade} />
-      </div>
-
       {/* Action Cards with Enhanced Design */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6" style={{animation: 'fade-in-up 0.6s ease-out 0.2s both'}}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6" style={{animation: 'fade-in-up 0.6s ease-out 0.1s both'}}>
         <ActionCard
           onClick={handleUploadClick}
           icon={<UploadIcon className="h-16 w-16 text-white drop-shadow-lg" />}
@@ -137,7 +131,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onFileSelect, onViewMeeting
       </div>
       
       {/* Stats Grid with Modern Design */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6" style={{animation: 'fade-in-up 0.6s ease-out 0.3s both'}}>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6" style={{animation: 'fade-in-up 0.6s ease-out 0.2s both'}}>
         <StatCard title="Minutes Transcribed" value={`${totalMinutesTranscribed} min`} total={`${maxMinutes} min`} />
         <StatCard title="Meetings This Month" value={`${totalMeetings}`} total={`${maxUploads}`} />
         <div className="glass-card text-center relative overflow-hidden group">
@@ -163,7 +157,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onFileSelect, onViewMeeting
       </div>
       
       {/* Meetings List with Advanced Styling */}
-      <div className="mt-8" style={{animation: 'fade-in-up 0.6s ease-out 0.4s both'}}>
+      <div className="mt-8" style={{animation: 'fade-in-up 0.6s ease-out 0.3s both'}}>
         <h3 className="text-3xl font-black gradient-text mb-6">My Meetings</h3>
         <div className="glass-card p-0 overflow-hidden">
             <ul className="divide-y divide-white/10">

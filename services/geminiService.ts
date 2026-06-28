@@ -1,7 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { TranscriptLine, MagicSummary, User } from "../types.ts";
 import { transcribeAudioWithProvider, generateMeetingSummaryWithProvider } from "./aiService";
-import { freeApiKeyService } from "./freeApiService";
 
 const getTranscriptionErrorMessage = (error: unknown): string => {
     const rawMessage = error instanceof Error ? error.message : String(error);
@@ -11,26 +10,16 @@ const getTranscriptionErrorMessage = (error: unknown): string => {
     return rawMessage;
 };
 
-// Check for user's custom API key first, then fall back to free service
+// Check for user's custom API key first.
 const getUserApiKey = async (userId?: string, audioDurationMinutes: number = 0): Promise<string | null> => {
   // Check for user's custom API key in environment or settings
-    const customApiKey = import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem('user_api_key');
+        const customApiKey = import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem('user_api_key');
   
   if (customApiKey) {
     return customApiKey;
   }
 
-  // Fall back to free API service for registered users
-  if (userId) {
-    const freeApiResult = await freeApiKeyService.getFreeApiKey(userId, audioDurationMinutes);
-    if (freeApiResult.canUse) {
-      return freeApiResult.apiKey;
-    } else {
-      throw new Error(freeApiResult.message);
-    }
-  }
-
-  throw new Error("No API key available. Please add your own Gemini API key or sign up for free access.");
+        throw new Error(`No API key available. Please add your Gemini API key in Settings or localStorage ('user_api_key').`);
 };
 
 // Create AI instance with dynamic API key
@@ -176,15 +165,7 @@ export const transcribeAudio = async (
     // Calculate actual audio duration in minutes
     const audioDurationMinutes = Math.ceil(audioBuffer.duration / 60);
     
-    // Check audio duration for free tier users
-    if (user.subscription === 'Free') {
-        const durationCheck = freeApiKeyService.validateAudioDuration(audioBuffer.duration);
-        if (!durationCheck.valid) {
-            throw new Error(durationCheck.message);
-        }
-    }
 
-    // Validate API access with actual duration before processing
     try {
         await createAIInstance(user.email, audioDurationMinutes); // Validate API key availability with duration
     } catch (error) {
