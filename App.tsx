@@ -49,9 +49,9 @@ const getAudioMetadata = (file: File): Promise<{ duration: number; url: string }
             size: file.size
         });
 
-        // Check file size (max 100MB)
-        if (file.size > 100 * 1024 * 1024) {
-            reject(`File too large: ${Math.round(file.size / (1024 * 1024))}MB. Maximum size is 100MB.`);
+        // Check file size (max 500MB)
+        if (file.size > 500 * 1024 * 1024) {
+            reject(`File too large: ${Math.round(file.size / (1024 * 1024))}MB. Maximum size is 500MB.`);
             return;
         }
 

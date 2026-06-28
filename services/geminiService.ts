@@ -11,20 +11,23 @@ const getTranscriptionErrorMessage = (error: unknown): string => {
 };
 
 // Check for user's custom API key first.
-const getUserApiKey = async (userId?: string, audioDurationMinutes: number = 0): Promise<string | null> => {
-  // Check for user's custom API key in environment or settings
-        const customApiKey = import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem('user_api_key');
-  
+const getUserApiKey = async (user: User | undefined, audioDurationMinutes: number = 0): Promise<string | null> => {
+  // Check for user's custom API key in settings, environment, or localStorage
+  const customApiKey = 
+    user?.settings?.apiKeys?.google ||
+    import.meta.env.VITE_GEMINI_API_KEY ||
+    (typeof window !== 'undefined' ? window.localStorage.getItem('user_api_key') : null);
+
   if (customApiKey) {
     return customApiKey;
   }
 
-        throw new Error(`No API key available. Please add your Gemini API key in Settings or localStorage ('user_api_key').`);
+  throw new Error(`No API key available. Please add your Gemini API key in Settings or browser localStorage ('user_api_key').`);
 };
 
 // Create AI instance with dynamic API key
-const createAIInstance = async (userId?: string, audioDurationMinutes: number = 0): Promise<GoogleGenAI> => {
-  const apiKey = await getUserApiKey(userId, audioDurationMinutes);
+const createAIInstance = async (user: User | undefined, audioDurationMinutes: number = 0): Promise<GoogleGenAI> => {
+  const apiKey = await getUserApiKey(user, audioDurationMinutes);
   if (!apiKey) {
     throw new Error("Unable to obtain API key");
   }
@@ -143,7 +146,7 @@ export const transcribeAudio = async (
     onProgress('Decoding audio file...');
     
     // Check file size first - limit to prevent memory issues
-    const MAX_FILE_SIZE_MB = user.subscription === 'Free' ? 25 : 100; // Lower limit for free tier
+    const MAX_FILE_SIZE_MB = user.subscription === 'Free' ? 50 : 500;
     if (audioFile.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
         throw new Error(`File size (${Math.round(audioFile.size / (1024 * 1024))}MB) exceeds the maximum limit of ${MAX_FILE_SIZE_MB}MB${user.subscription === 'Free' ? ' for free tier' : ''}. Please use a smaller file.`);
     }
@@ -167,7 +170,7 @@ export const transcribeAudio = async (
     
 
     try {
-        await createAIInstance(user.email, audioDurationMinutes); // Validate API key availability with duration
+        await createAIInstance(user, audioDurationMinutes); // Validate API key availability with duration
     } catch (error) {
         throw new Error(`API access error: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -282,7 +285,7 @@ export const generateMeetingSummary = async (transcript: TranscriptLine[], user:
 };
 
 export const translateSummary = async (summary: MagicSummary, targetLanguage: string, user?: User): Promise<MagicSummary> => {
-    const ai = await createAIInstance(user?.email);
+    const ai = await createAIInstance(user);
 
     const summaryText = `
         Executive Summary: ${summary.executiveSummary}

@@ -57,7 +57,7 @@ export const validateApiKey = (key: string): boolean => {
 
 // File validation for audio uploads
 export const validateAudioFile = (file: File): { valid: boolean; error?: string } => {
-  const maxSize = 100 * 1024 * 1024; // 100MB
+  const maxSize = 500 * 1024 * 1024; // 500MB
   const allowedTypes = [
     'audio/mpeg',
     'audio/mp3',
@@ -81,7 +81,7 @@ export const validateAudioFile = (file: File): { valid: boolean; error?: string 
   ];
   
   if (file.size > maxSize) {
-    return { valid: false, error: 'File size exceeds 100MB limit' };
+    return { valid: false, error: 'File size exceeds 500MB limit' };
   }
   
   const normalizedType = file.type.trim().toLowerCase();
