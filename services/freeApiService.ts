@@ -24,8 +24,8 @@ class FreeApiKeyService {
   // Free API keys pool - Mix of real and placeholder keys
   // Get more real keys from: https://ai.google.dev/
   private readonly FREE_API_KEYS = [
-    // Real working Gemini API key for AudioMax free tier
-    'AIzaSyDKB8xzT3jLcR9cK5qF8hN6mY2wE4rP7sA',
+    // Add real keys via secure runtime configuration, not source control.
+    'PLACEHOLDER_KEY_1_REPLACE_WITH_REAL_KEY',
     // Additional real keys can be added here
     // To add more keys: Go to https://ai.google.dev/ and create new API keys
     'PLACEHOLDER_KEY_2_REPLACE_WITH_REAL_KEY',

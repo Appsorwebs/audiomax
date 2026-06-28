@@ -1,11 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { BackArrowIcon } from './icons/BackArrowIcon';
 import { MicrophoneIcon } from './icons/MicrophoneIcon';
-import LiveCaptionsDisplay from './LiveCaptionsDisplay';
-import CalendarSelector from './CalendarSelector';
-import SelectedEventInfo from './SelectedEventInfo';
-import { StreamingCaption } from '../services/streamingTranscriptionService';
-import { type CalendarEvent } from '../services/calendarService';
 
 interface RecordingPageProps {
   onBack: () => void;
@@ -46,15 +41,14 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
   const [isProcessing, setIsProcessing] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [liveCaptions, setLiveCaptions] = useState<StreamingCaption[]>([]);
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
-  const [showCalendarSelector, setShowCalendarSelector] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const processCallbackRef = useRef<(() => void) | null>(null);
+  const isProcessingRef = useRef(false);
+  const completionHandledRef = useRef(false);
+  const stopTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cleanup function
   const cleanup = () => {
@@ -62,18 +56,33 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    if (stopTimeoutRef.current) {
+      clearTimeout(stopTimeoutRef.current);
+      stopTimeoutRef.current = null;
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
     mediaRecorderRef.current = null;
     audioChunksRef.current = [];
+    isProcessingRef.current = false;
   };
 
   // Start recording
   const startRecording = async () => {
     try {
       setError(null);
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setError('This browser does not support microphone recording. Please use a modern browser or mobile device.');
+        return;
+      }
+
+      if (typeof MediaRecorder === 'undefined') {
+        setError('This browser does not support audio recording. Please use a modern browser or mobile device.');
+        return;
+      }
       
       // Get microphone permission
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -102,9 +111,47 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
       // Handle stop
       mediaRecorder.onstop = () => {
         console.log('📹 MediaRecorder onstop event fired');
-        // Call the processing callback if available
-        if (processCallbackRef.current) {
-          processCallbackRef.current();
+        
+        // Only process if we're still in processing state (prevent double processing)
+        if (!isProcessingRef.current || completionHandledRef.current) {
+          console.log('❌ Not in processing state, ignoring onstop event');
+          return;
+        }
+        completionHandledRef.current = true;
+        
+        if (audioChunksRef.current.length > 0) {
+          const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+          console.log('📦 Creating blob from onstop, size:', audioBlob.size, 'bytes');
+          
+          if (audioBlob.size < 100) {
+            console.log('❌ Blob too small from onstop');
+            setError('Recording too short. Please try again.');
+            setIsProcessing(false);
+            setElapsedTime(0);
+            cleanup();
+            return;
+          }
+          
+          const extension = getFileExtension(mimeType);
+          const audioFile = new File(
+            [audioBlob], 
+            `recording-${Date.now()}.${extension}`, 
+            { type: mimeType }
+          );
+          
+          console.log('✅ Audio file created from onstop:', audioFile.name, audioFile.size, 'bytes');
+          isProcessingRef.current = false;
+          setIsProcessing(false);
+          setElapsedTime(0);
+          cleanup();
+          onRecordingComplete(audioFile);
+        } else {
+          console.log('❌ No audio chunks in onstop');
+          setError('No audio data recorded. Please try again.');
+          isProcessingRef.current = false;
+          setIsProcessing(false);
+          setElapsedTime(0);
+          cleanup();
         }
       };
       
@@ -112,41 +159,6 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
       mediaRecorder.start();
       setIsRecording(true);
       setElapsedTime(0);
-      setLiveCaptions([]); // Clear previous captions
-      
-      // Start generating live captions
-      let captionId = 0;
-      let speakerToggle = false;
-      const captionInterval = setInterval(() => {
-        if (!isRecording) {
-          clearInterval(captionInterval);
-          return;
-        }
-        
-        const captionTexts = [
-          "I believe we should focus on the metrics.",
-          "That's a really good point to consider.",
-          "Let me elaborate on that discussion.",
-          "I completely agree with that approach.",
-          "We need to analyze this more carefully.",
-          "That aligns with our strategy perfectly.",
-          "Can we schedule another follow-up meeting?",
-          "I think we've covered the main points.",
-        ];
-        
-        const newCaption: StreamingCaption = {
-          id: `caption-${captionId++}`,
-          text: captionTexts[Math.floor(Math.random() * captionTexts.length)],
-          speaker: speakerToggle ? 'Speaker 1' : 'Speaker 2',
-          timestamp: formatTime(elapsedTime),
-          confidence: Math.min(95, 60 + Math.random() * 40),
-          startTime: elapsedTime,
-          endTime: elapsedTime + 2
-        };
-        
-        setLiveCaptions(prev => [...prev, newCaption]);
-        speakerToggle = !speakerToggle;
-      }, 2000);
       
       // Start timer
       timerRef.current = setInterval(() => {
@@ -168,74 +180,12 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
   const stopRecording = () => {
     console.log('🔴 STOP BUTTON CLICKED - Starting force stop sequence');
     console.log('Current state:', { isRecording, isProcessing, chunks: audioChunksRef.current.length });
-    
-    // Define the processing callback
-    const doProcess = () => {
-      console.log('🔧 Processing audio file...');
-      console.log('Audio chunks available:', audioChunksRef.current.length);
-      
-      // If no chunks, show error
-      if (audioChunksRef.current.length === 0) {
-        console.log('❌ No audio chunks available');
-        setError('No audio data recorded. Please try again.');
-        setIsProcessing(false);
-        setElapsedTime(0);
-        cleanup();
-        return;
-      }
-      
-      try {
-        const mimeType = getSupportedMimeType();
-        console.log('🎵 Creating blob with mime type:', mimeType);
-        
-        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-        console.log('📦 Blob created, size:', audioBlob.size, 'bytes');
-        
-        if (audioBlob.size < 100) {
-          console.log('❌ Blob too small:', audioBlob.size, 'bytes');
-          setError('Recording too short. Please try again.');
-          setIsProcessing(false);
-          setElapsedTime(0);
-          cleanup();
-          return;
-        }
-        
-        const extension = getFileExtension(mimeType);
-        const audioFile = new File(
-          [audioBlob], 
-          `recording-${Date.now()}.${extension}`, 
-          { type: mimeType }
-        );
-        
-        console.log('✅ Audio file created successfully:');
-        console.log('  - Name:', audioFile.name);
-        console.log('  - Size:', audioFile.size, 'bytes');
-        console.log('  - Type:', audioFile.type);
-        
-        // Clear processing state and clean up
-        setIsProcessing(false);
-        setElapsedTime(0);
-        cleanup();
-        
-        // Call completion handler
-        console.log('🚀 Calling onRecordingComplete...');
-        onRecordingComplete(audioFile);
-        
-      } catch (error) {
-        console.error('❌ Error creating audio file:', error);
-        setError('Failed to create audio file. Please try again.');
-        setIsProcessing(false);
-        setElapsedTime(0);
-        cleanup();
-      }
-    };
-    
-    // Store the callback so onstop can call it
-    processCallbackRef.current = doProcess;
+    completionHandledRef.current = false;
     
     // STEP 1: Force immediate state change - no guards whatsoever
     setIsRecording(false);
     setIsProcessing(true);
+    isProcessingRef.current = true;
     console.log('✅ States changed: isRecording=false, isProcessing=true');
     
     // STEP 2: Force stop timer immediately
@@ -270,33 +220,98 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
           mediaRecorderRef.current.resume();
           mediaRecorderRef.current.stop();
         } else {
-          console.log('📹 MediaRecorder not recording, processing file manually');
-          doProcess();
+          console.log('📹 MediaRecorder not recording, creating file manually');
+          createAudioFileManually();
         }
       } catch (error) {
         console.error('❌ Error with MediaRecorder.stop():', error);
         console.log('🔧 Falling back to manual file creation');
-        doProcess();
+        createAudioFileManually();
       }
     } else {
-      console.log('📹 No MediaRecorder found, processing file manually');
-      doProcess();
+      console.log('📹 No MediaRecorder found, creating file manually');
+      createAudioFileManually();
     }
     
     // STEP 5: Aggressive timeout fallback (1 second)
-    const timeoutId = setTimeout(() => {
+    stopTimeoutRef.current = setTimeout(() => {
       console.log('⏰ 1-second timeout check...');
-      // Check if we still have chunks - if so, process them
-      if (audioChunksRef.current.length > 0 && processCallbackRef.current) {
+      if (isProcessingRef.current && !completionHandledRef.current) {
         console.log('🚨 TIMEOUT: MediaRecorder.onstop never fired, forcing completion');
-        processCallbackRef.current();
+        completionHandledRef.current = true;
+        createAudioFileManually();
       } else {
-        console.log('✅ Already completed or no chunks, timeout not needed');
+        console.log('✅ Already completed, timeout not needed');
       }
     }, 1000);
+  };
+
+  // Manual file creation for when MediaRecorder fails
+  const createAudioFileManually = () => {
+    console.log('🔧 Creating audio file manually...');
+    console.log('Audio chunks available:', audioChunksRef.current.length);
     
-    // Store timeout ID for cleanup if needed
-    (window as any).recordingTimeoutId = timeoutId;
+    // Check if we're already processed (prevent double processing)
+    if (!isProcessingRef.current) {
+      console.log('❌ Not in processing state, skipping manual creation');
+      return;
+    }
+    
+    if (audioChunksRef.current.length === 0) {
+      console.log('❌ No audio chunks available');
+      setError('No audio data recorded. Please try again.');
+      setIsProcessing(false);
+      setElapsedTime(0);
+      cleanup();
+      return;
+    }
+    
+    try {
+      const mimeType = getSupportedMimeType();
+      console.log('🎵 Creating blob with mime type:', mimeType);
+      
+      const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+      console.log('📦 Blob created, size:', audioBlob.size, 'bytes');
+      
+      if (audioBlob.size < 100) {
+        console.log('❌ Blob too small:', audioBlob.size, 'bytes');
+        setError('Recording too short. Please try again.');
+        setIsProcessing(false);
+        setElapsedTime(0);
+        cleanup();
+        return;
+      }
+      
+      const extension = getFileExtension(mimeType);
+      const audioFile = new File(
+        [audioBlob], 
+        `recording-${Date.now()}.${extension}`, 
+        { type: mimeType }
+      );
+      
+      console.log('✅ Audio file created successfully:');
+      console.log('  - Name:', audioFile.name);
+      console.log('  - Size:', audioFile.size, 'bytes');
+      console.log('  - Type:', audioFile.type);
+      
+      // Clear processing state and clean up
+      isProcessingRef.current = false;
+      setIsProcessing(false);
+      setElapsedTime(0);
+      cleanup();
+      
+      // Call completion handler
+      console.log('🚀 Calling onRecordingComplete...');
+      onRecordingComplete(audioFile);
+      
+    } catch (error) {
+      console.error('❌ Error creating audio file manually:', error);
+      setError('Failed to create audio file. Please try again.');
+      isProcessingRef.current = false;
+      setIsProcessing(false);
+      setElapsedTime(0);
+      cleanup();
+    }
   };
 
   // Cleanup on unmount
@@ -305,126 +320,103 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
   }, []);
 
   return (
-    <div className="w-full min-h-screen flex items-center justify-center">
-      <div className="max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Calendar Selector Modal */}
-        {showCalendarSelector && (
-          <CalendarSelector 
-            onSelectEvent={(event) => setSelectedEvent(event)}
-            onClose={() => setShowCalendarSelector(false)}
-            selectedEvent={selectedEvent || undefined}
-          />
-        )}
+    <div className="flex flex-col items-center justify-center min-h-[80vh] text-center relative">
+      <button 
+        onClick={onBack} 
+        className="absolute top-4 left-4 md:left-8 glass-button flex items-center group"
+      >
+        <BackArrowIcon className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform duration-300" />
+        Back to Dashboard
+      </button>
 
-        <div className="flex flex-col items-center justify-center text-center relative">
-          <button 
-            onClick={onBack} 
-            className="absolute -top-20 left-0 flex items-center gap-2 text-primary-400 hover:text-primary-300 transition-colors group"
-          >
-            <BackArrowIcon className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
-            <span className="hidden sm:inline">Back to Dashboard</span>
-            <span className="sm:hidden">Back</span>
-          </button>
-
-          {/* Calendar Button or Selected Event */}
-          <div className="mb-6 max-w-2xl w-full">
-            {selectedEvent ? (
-              <SelectedEventInfo 
-                event={selectedEvent}
-                onChangeEvent={() => setShowCalendarSelector(true)}
-              />
-            ) : (
-              <button
-                onClick={() => setShowCalendarSelector(true)}
-                className="w-full px-4 py-3 bg-gradient-to-r from-sky-500/20 to-blue-500/20 border border-sky-500/30 hover:border-sky-500/60 rounded-lg font-medium text-sky-600 dark:text-sky-400 transition-all flex items-center justify-center gap-2 hover:from-sky-500/30 hover:to-blue-500/30"
-              >
-                <span>📅</span>
-                <span>Link Calendar Event</span>
-                <span className="text-xs ml-auto opacity-60">Optional</span>
-              </button>
-            )}
-          </div>
-
-          <div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-neutral-100 mb-2">
-              {isProcessing ? "Processing Recording..." : isRecording ? "Recording in Progress" : "Ready to Record"}
-            </h2>
-            <p className="text-neutral-400 mb-8 text-sm sm:text-base">
-              {isProcessing 
-                ? "Please wait while we process your recording." 
-                : isRecording 
-                ? "Press the red button below to stop recording." 
-                : "Press the button below to start recording."
-              }
-            </p>
-
-            <div className="w-48 h-48 sm:w-64 sm:h-64 rounded-full flex items-center justify-center glass-premium relative mx-auto">
-          {isRecording && (
-            <div className="absolute inset-0 rounded-full bg-sky-500/20 animate-pulse"></div>
-          )}
-          
-          <button 
-            onClick={isRecording ? stopRecording : startRecording}
-            disabled={isProcessing}
-            className={`w-32 h-32 sm:w-40 sm:h-40 rounded-full text-white flex items-center justify-center transition-all duration-300 shadow-lg ${
-              isProcessing
-                ? 'bg-neutral-500 cursor-not-allowed opacity-50'
-                : isRecording 
-                ? 'bg-danger-500 hover:bg-danger-600 shadow-danger-500/50' 
-                : 'bg-primary-500 hover:bg-primary-600 shadow-primary-500/50'
-            }`}
-            aria-label={isProcessing ? 'Processing recording' : isRecording ? 'Stop recording' : 'Start recording'}
-          >
-            {isProcessing ? (
-              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white"></div>
-            ) : isRecording ? (
-              <StopIcon className="h-16 w-16" />
-            ) : (
-              <MicrophoneIcon className="h-16 w-16" />
-            )}
-          </button>
-        </div>
-        </div>
-
-        <p className="text-5xl font-mono font-bold text-slate-900 dark:text-slate-100 mt-8">
-          {formatTime(elapsedTime)}
+      <div className="max-w-2xl mx-auto px-4">
+        <h2 className="text-5xl font-black gradient-text mb-4" style={{animation: 'fade-in-up 0.6s ease-out'}}>
+          {isProcessing ? "Processing Recording..." : isRecording ? "Recording in Progress" : "Ready to Record"}
+        </h2>
+        <p className="text-white/70 text-xl mb-12" style={{animation: 'fade-in-up 0.6s ease-out 0.1s both'}}>
+          {isProcessing 
+            ? "Please wait while we process your recording. ⚡" 
+            : isRecording 
+            ? "Press the red button below to stop recording. 🎙️" 
+            : "Press the button below to start recording. 🚀"
+          }
         </p>
 
-        {/* Live Captions Display */}
-        {isRecording && (
-          <div className="mt-8 w-full max-w-2xl mx-auto">
-            <LiveCaptionsDisplay 
-              captions={liveCaptions} 
-              isLive={isRecording}
-            />
-          </div>
-        )}
-
-        {/* Processing Indicator */}
-        {isProcessing && (
-          <div className="mt-6 flex items-center justify-center gap-3 p-4 rounded-lg bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30 border border-blue-200 dark:border-blue-800 max-w-2xl mx-auto">
-            <div className="w-3 h-3 rounded-full bg-blue-500 animate-pulse"></div>
-            <p className="text-blue-700 dark:text-blue-300 font-medium">
-              Processing your recording...
-            </p>
-          </div>
-        )}
-
-        {error && (
-          <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg max-w-sm mx-auto">
-            <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+        {/* Enhanced Recording Button Container */}
+        <div className="relative inline-block mb-8" style={{animation: 'scale-in 0.6s ease-out 0.2s both'}}>
+          {/* Animated Rings */}
+          {isRecording && (
+            <>
+              <div className="absolute inset-0 rounded-full bg-red-500/20 animate-pulse" style={{animation: 'pulse-glow 1.5s ease-in-out infinite'}}></div>
+              <div className="absolute inset-[-20px] rounded-full border-2 border-red-500/30 animate-ping"></div>
+              <div className="absolute inset-[-40px] rounded-full border border-red-500/20 animate-ping" style={{animationDelay: '0.5s'}}></div>
+            </>
+          )}
+          
+          {/* Glass Container */}
+          <div className="w-80 h-80 rounded-full glass-card flex items-center justify-center relative overflow-hidden group">
+            {/* Gradient Background Animation */}
+            <div className={`absolute inset-0 opacity-50 ${
+              isRecording 
+                ? 'bg-gradient-to-br from-red-500 via-pink-500 to-red-600' 
+                : 'bg-gradient-to-br from-purple-500 via-blue-500 to-pink-500'
+            } ${isRecording ? 'animate-pulse' : ''}`}></div>
+            
+            {/* Main Button */}
             <button 
-              onClick={() => setError(null)}
-              className="mt-2 text-sm text-red-500 hover:text-red-700 underline"
+              onClick={isRecording ? stopRecording : startRecording}
+              disabled={isProcessing}
+              className={`relative z-10 w-56 h-56 rounded-full text-white flex items-center justify-center transition-all duration-500 shadow-2xl transform hover:scale-110 ${
+                isProcessing
+                  ? 'bg-gradient-to-br from-gray-500 to-gray-600 cursor-not-allowed'
+                  : isRecording 
+                  ? 'bg-gradient-to-br from-red-500 to-red-700 hover:shadow-red-500/50' 
+                  : 'bg-gradient-to-br from-purple-500 to-blue-600 hover:shadow-purple-500/50 animate-pulse-glow'
+              }`}
+              aria-label={isProcessing ? 'Processing recording' : isRecording ? 'Stop recording' : 'Start recording'}
             >
-              Dismiss
+              {isProcessing ? (
+                <div className="relative">
+                  <div className="loading-spinner"></div>
+                </div>
+              ) : isRecording ? (
+                <StopIcon className="h-20 w-20 drop-shadow-lg" />
+              ) : (
+                <MicrophoneIcon className="h-20 w-20 drop-shadow-lg" />
+              )}
             </button>
           </div>
+        </div>
+
+        {/* Enhanced Timer Display */}
+        <div className="glass-card inline-block px-12 py-6 mb-8" style={{animation: 'fade-in-up 0.6s ease-out 0.3s both'}}>
+          <p className="text-6xl font-mono font-black gradient-text">
+            {formatTime(elapsedTime)}
+          </p>
+          <p className="text-sm text-white/50 mt-2 uppercase tracking-wider">Recording Time</p>
+        </div>
+
+        {/* Error Display */}
+        {error && (
+          <div className="glass-card border-2 border-red-500/50 max-w-md mx-auto" style={{animation: 'scale-in 0.3s ease-out'}}>
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0 text-2xl">⚠️</div>
+              <div className="flex-1 text-left">
+                <p className="text-red-300 font-semibold mb-2">{error}</p>
+                <button 
+                  onClick={() => setError(null)}
+                  className="text-sm text-red-400 hover:text-red-300 underline"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
-        {/* Emergency Reset Button - for testing */}
+        {/* Emergency Reset Button with Modern Design */}
         {(isRecording || isProcessing) && (
-          <div className="mt-6">
+          <div className="mt-8" style={{animation: 'fade-in-up 0.6s ease-out 0.4s both'}}>
             <button 
               onClick={() => {
                 console.log('🚨 EMERGENCY RESET TRIGGERED');
@@ -435,16 +427,32 @@ const RecordingPage: React.FC<RecordingPageProps> = ({ onBack, onRecordingComple
                 setError('Recording reset successfully.');
                 setTimeout(() => setError(null), 3000);
               }}
-              className="px-4 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors border-2 border-red-700"
+              className="glass-button border-2 border-red-500/50 hover:border-red-500 hover:bg-red-500/20 transition-all duration-300"
             >
-              🚨 Emergency Reset
+              <span className="mr-2">🚨</span> Emergency Reset
             </button>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-xs text-white/40 mt-2">
               Use if recording won't stop
             </p>
           </div>
         )}
-        </div>
+
+        {/* Visual Waveform Indicator (Decorative) */}
+        {isRecording && (
+          <div className="flex justify-center space-x-1 mt-8" style={{animation: 'fade-in-up 0.6s ease-out 0.5s both'}}>
+            {[...Array(12)].map((_, i) => (
+              <div 
+                key={i}
+                className="w-1 bg-gradient-to-t from-purple-500 to-pink-500 rounded-full"
+                style={{
+                  height: `${Math.random() * 40 + 10}px`,
+                  animation: `float 1s ease-in-out infinite`,
+                  animationDelay: `${i * 0.1}s`
+                }}
+              ></div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

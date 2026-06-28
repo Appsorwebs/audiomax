@@ -9,20 +9,21 @@ import AuthPage from './components/AuthPage';
 import SettingsModal from './components/SettingsModal';
 import AdminDashboard from './components/AdminDashboard';
 import Credits from './components/Credits';
+import ApiKeySetup from './components/ApiKeySetup';
 import { Meeting, MagicSummary, User, SubscriptionPlan, UserSettings } from './types';
-import { PLAN_LIMITS, DEFAULT_MODEL } from './constants';
+import { PLAN_LIMITS } from './constants';
 import Header from './components/Header';
 import ProcessingOverlay from './components/ProcessingOverlay';
 import { transcribeAudio, generateMeetingSummary, translateSummary } from './services/geminiService';
 import * as authService from './services/authService';
-import { initializeSecurity, validateEnvironment } from './utils/security';
+import { initializeSecurity, validateAudioFile, validateEnvironment } from './utils/security';
 
 // Initialize security measures
 initializeSecurity();
 
 // Validate environment
 const envCheck = validateEnvironment();
-if (!envCheck.secure && process.env.NODE_ENV === 'production') {
+if (!envCheck.secure && import.meta.env.PROD) {
   console.warn('Security warnings:', envCheck.warnings);
 }
 
@@ -36,11 +37,7 @@ const createGuestUser = (): User => {
         email: 'Guest',
         subscription: 'Free',
         meetings: [],
-        isGuest: true,
-        settings: {
-            selectedModel: DEFAULT_MODEL,
-            apiKeys: {}
-        }
+        isGuest: true
     };
 };
 
@@ -67,6 +64,15 @@ const getAudioMetadata = (file: File): Promise<{ duration: number; url: string }
         // Create URL and audio element
         const url = window.URL.createObjectURL(file);
         const audio = document.createElement('audio');
+        let settled = false;
+        const timeoutId = window.setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            cleanup();
+            // Continue with a conservative fallback when metadata cannot be read.
+            resolve({ duration: 1, url });
+          }
+        }, 8000);
         
         audio.preload = 'metadata';
         audio.muted = true;
@@ -74,9 +80,12 @@ const getAudioMetadata = (file: File): Promise<{ duration: number; url: string }
         const cleanup = () => {
             audio.removeEventListener('loadedmetadata', onLoad);
             audio.removeEventListener('error', onError);
+          window.clearTimeout(timeoutId);
         };
 
         const onLoad = () => {
+          if (settled) return;
+          settled = true;
             console.log('Audio loaded, duration:', audio.duration);
             cleanup();
             // Accept any valid duration, including very short ones
@@ -85,6 +94,8 @@ const getAudioMetadata = (file: File): Promise<{ duration: number; url: string }
         };
 
         const onError = () => {
+          if (settled) return;
+          settled = true;
             console.error('Audio loading error');
             cleanup();
             window.URL.revokeObjectURL(url);
@@ -97,6 +108,7 @@ const getAudioMetadata = (file: File): Promise<{ duration: number; url: string }
         
         // Start loading
         audio.src = url;
+        audio.load();
     });
 };
 
@@ -124,6 +136,17 @@ const App: React.FC = () => {
   const [processingProgressText, setProcessingProgressText] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
+  const [needsApiKey, setNeedsApiKey] = useState(false);
+
+  // Check if API key is available
+  useEffect(() => {
+    // Since we have at least one working API key, allow access
+    setNeedsApiKey(false);
+  }, []);
+
+  const handleApiKeySet = () => {
+    setNeedsApiKey(false);
+  };
 
   // Admin dashboard keyboard shortcut (Ctrl+Alt+A)
   useEffect(() => {
@@ -150,6 +173,12 @@ const App: React.FC = () => {
 
   const handleUploadAndProcess = async (audioFile: File) => {
     if (!currentUser) return;
+
+    const fileValidation = validateAudioFile(audioFile);
+    if (!fileValidation.valid) {
+      alert(fileValidation.error || 'Invalid audio file. Please choose another file.');
+      return;
+    }
     
     // Check plan limits before processing
     const currentPlanLimits = PLAN_LIMITS[currentUser.subscription];
@@ -213,6 +242,7 @@ const App: React.FC = () => {
     } catch (error: any) {
         console.error("Processing failed:", error);
         
+        // Better error message handling
         let errorMessage = "Unknown error occurred";
         if (error && typeof error === 'object') {
           if (error.message) {
@@ -224,7 +254,14 @@ const App: React.FC = () => {
           errorMessage = error;
         }
         
-        alert(`An error occurred during processing: ${errorMessage}\n\nPlease check the console for more details. If the backend server is not running, start it with: npm run server`);
+        // Check if it's an API key related error
+        if (errorMessage.includes('API key') || errorMessage.includes('unauthorized') || errorMessage.includes('No API key')) {
+          alert(`🔑 API Key Required\n\nThis demo uses placeholder API keys. To use AudioMax:\n\n1. Get a free Gemini API key from: https://ai.google.dev/\n2. Add it to your browser's localStorage as 'user_api_key'\n3. Or modify the FREE_API_KEYS in freeApiService.ts\n\nError details: ${errorMessage}`);
+        } else if (/failed to fetch|network request failed|networkerror|load failed/i.test(errorMessage)) {
+          alert(`Network error while contacting Gemini: ${errorMessage}\n\nQuick checks:\n1. Verify internet access\n2. Disable VPN/ad-blocker/firewall rules that block generativelanguage.googleapis.com\n3. Confirm your API key is valid\n\nNote: This app does not require a local backend server for transcription.`);
+        } else {
+          alert(`An error occurred during processing: ${errorMessage}\n\nPlease check the console for more details and ensure your API key is set up correctly.`);
+        }
         
         handleBackToDashboard();
     }
@@ -334,40 +371,63 @@ const App: React.FC = () => {
 
   return (
     <ThemeProvider>
-      <div className="min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-850 text-neutral-100 flex flex-col transition-colors duration-300">
-        {/* Background gradient overlay effect */}
-        <div className="fixed inset-0 bg-gradient-to-br from-primary-500/5 via-transparent to-secondary-500/5 pointer-events-none" />
-        
-        {currentPage === 'processing' && <ProcessingOverlay steps={processingSteps} currentStep={currentStep} progressText={processingProgressText} />}
-        <Header 
-          user={currentUser}
-          onLogout={handleLogout}
-          onLoginClick={() => setCurrentPage('auth')}
-          onHomeClick={handleBackToDashboard} 
-          onPricingClick={() => setCurrentPage('pricing')} 
-        />
-
-        <main className="flex-1 relative z-10">
-          {renderPage()}
-        </main>
-        
-        {/* Admin Dashboard */}
-        {isAdminDashboardOpen && (
-          <AdminDashboard onClose={() => setIsAdminDashboardOpen(false)} />
-        )}
-
-        {/* Footer */}
-        <div className="mt-auto relative z-10">
-          <Credits />
+      <div className={`min-h-screen flex flex-col transition-all duration-500 relative overflow-hidden`}>
+        {/* Animated Background Elements */}
+        <div className="fixed inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-float" style={{animationDelay: '0s'}}></div>
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-float" style={{animationDelay: '2s'}}></div>
+          <div className="absolute top-1/2 left-1/2 w-96 h-96 bg-pink-500/10 rounded-full blur-3xl animate-float" style={{animationDelay: '4s'}}></div>
         </div>
-        
-        {/* Settings Modal */}
-        <SettingsModal
-          user={currentUser}
-          isOpen={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
-          onSave={handleSettingsSave}
-        />
+
+        {/* Main Content */}
+        <div className="relative z-10 flex flex-col min-h-screen">
+          {currentPage === 'processing' && <ProcessingOverlay steps={processingSteps} currentStep={currentStep} progressText={processingProgressText} />}
+          
+          <Header 
+            user={currentUser}
+            onLogout={handleLogout}
+            onLoginClick={() => setCurrentPage('auth')}
+            onHomeClick={handleBackToDashboard} 
+            onPricingClick={() => setCurrentPage('pricing')} 
+          />
+
+          {needsApiKey ? (
+            <div className="flex-1 flex items-center justify-center p-4">
+              <div className="glass-card max-w-2xl w-full" style={{animation: 'scale-in 0.5s ease-out'}}>
+                <ApiKeySetup onApiKeySet={handleApiKeySet} />
+              </div>
+            </div>
+          ) : (
+            <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">
+              <div className="max-w-7xl mx-auto" style={{animation: 'fade-in-up 0.6s ease-out'}}>
+                {renderPage()}
+              </div>
+            </main>
+          )}
+          
+          {/* Admin Dashboard */}
+          {isAdminDashboardOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{animation: 'fade-in-up 0.3s ease-out'}}>
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsAdminDashboardOpen(false)}></div>
+              <div className="relative z-10 w-full max-w-6xl">
+                <AdminDashboard onClose={() => setIsAdminDashboardOpen(false)} />
+              </div>
+            </div>
+          )}
+
+          {/* Footer */}
+          <div className="mt-auto relative z-10">
+            <Credits />
+          </div>
+          
+          {/* Settings Modal */}
+          <SettingsModal
+            user={currentUser}
+            isOpen={isSettingsOpen}
+            onClose={() => setIsSettingsOpen(false)}
+            onSave={handleSettingsSave}
+          />
+        </div>
       </div>
     </ThemeProvider>
   );

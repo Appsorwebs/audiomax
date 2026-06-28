@@ -16,10 +16,18 @@ const getApiKey = (user: User, provider: string): string | null => {
         return null;
     }
   }
+
+    // Fallback to user-provided key stored in browser localStorage.
+    if (provider === 'google' && typeof window !== 'undefined') {
+        const browserApiKey = window.localStorage.getItem('user_api_key');
+        if (browserApiKey) {
+            return browserApiKey;
+        }
+    }
   
   // Fallback to environment variable for Google
   if (provider === 'google') {
-    return process.env.API_KEY || null;
+        return import.meta.env.VITE_GEMINI_API_KEY || null;
   }
   
   return null;
@@ -164,6 +172,9 @@ const transcribeAudioWithProvider = async (
     } catch (error) {
         console.error("Error transcribing audio:", error);
         if (error instanceof Error) {
+             if (/failed to fetch|networkerror|load failed/i.test(error.message)) {
+                throw new Error("Network request to Gemini failed. Check internet connectivity, API key validity, VPN/firewall restrictions, and allow access to generativelanguage.googleapis.com.");
+             }
              throw error; 
         }
         throw new Error("Failed to transcribe audio. The model may have been unable to process the request.");

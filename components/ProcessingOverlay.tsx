@@ -1,5 +1,4 @@
 import React from 'react';
-import { Spinner } from './ui/Spinner';
 
 interface ProcessingOverlayProps {
   steps: string[];
@@ -8,85 +7,75 @@ interface ProcessingOverlayProps {
 }
 
 const ProcessingOverlay: React.FC<ProcessingOverlayProps> = ({ steps, currentStep, progressText }) => {
-  const progress = Math.round(((currentStep + 1) / steps.length) * 100);
-
   return (
-    <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-xl flex flex-col items-center justify-center z-50 p-4">
-      {/* Animated background gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary-500/10 via-transparent to-secondary-500/10 animate-pulse" />
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-xl flex flex-col items-center justify-center z-50 p-4" style={{animation: 'fade-in-up 0.3s ease-out'}}>
+      {/* Animated Background Elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-float"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-float" style={{animationDelay: '2s'}}></div>
+      </div>
 
-      <div className="glass-premium p-8 rounded-2xl shadow-2xl max-w-md w-full relative z-10 border border-primary-500/30">
-        {/* Spinner */}
-        <div className="flex justify-center mb-6">
-          <div className="relative w-16 h-16">
-            <Spinner className="h-16 w-16 text-primary-400 mx-auto" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-xl font-bold text-primary-400">{progress}%</span>
-            </div>
+      <div className="relative z-10 text-center glass-card max-w-2xl w-full p-8 shadow-2xl">
+        {/* Enhanced Loading Spinner */}
+        <div className="relative inline-block mb-8">
+          <div className="loading-spinner w-20 h-20"></div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 animate-pulse"></div>
           </div>
         </div>
 
-        {/* Title */}
-        <h2 className="text-2xl font-bold text-neutral-100 text-center mb-2">
-          Processing your audio
-        </h2>
-        <p className="text-neutral-400 text-center text-sm mb-6">
-          Hang tight, this won't take long...
-        </p>
-
-        {/* Progress Bar */}
-        <div className="mb-6">
-          <div className="w-full h-2 bg-neutral-700 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-primary-500 to-secondary-500 transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <p className="text-xs text-neutral-400 text-center mt-2">{progress}% complete</p>
-        </div>
-
-        {/* Steps */}
-        <div className="space-y-2">
+        <h2 className="text-4xl font-black gradient-text mb-4">Processing your audio...</h2>
+        <p className="text-white/70 text-lg mb-8">✨ AI magic in progress ✨</p>
+        
+        <div className="space-y-4 text-left">
           {steps.map((step, index) => (
-            <div key={index} className="flex items-center gap-3 transition-all duration-300">
-              <div
-                className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center font-semibold text-xs transition-all ${
-                  index < currentStep
-                    ? 'bg-gradient-to-r from-success-500 to-success-600 text-white shadow-lg'
-                    : index === currentStep
-                    ? 'bg-gradient-to-r from-primary-500 to-secondary-500 text-white animate-pulse'
-                    : 'bg-neutral-700 text-neutral-400'
-                }`}
-              >
+            <div 
+              key={index} 
+              className="glass-card bg-white/5 flex items-center transition-all duration-500 hover:scale-105"
+              style={{animation: `fade-in-up 0.4s ease-out ${index * 0.1}s both`}}
+            >
+              <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center mr-4 transition-all duration-500 ${
+                  index < currentStep ? 'bg-gradient-to-br from-green-400 to-green-600 shadow-lg shadow-green-500/50' :
+                  index === currentStep ? 'bg-gradient-to-br from-purple-500 to-blue-500 shadow-lg shadow-purple-500/50 animate-pulse-glow' :
+                  'bg-white/10'
+              }`}>
                 {index < currentStep ? (
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                   </svg>
                 ) : index === currentStep ? (
-                  <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                  <div className="w-3 h-3 bg-white rounded-full animate-pulse"></div>
                 ) : (
-                  index + 1
+                  <span className="text-white/50 text-lg font-bold">{index + 1}</span>
                 )}
               </div>
-              <span
-                className={`text-sm font-medium transition-colors ${
-                  index <= currentStep
-                    ? 'text-neutral-200'
-                    : 'text-neutral-500'
-                }`}
-              >
-                {index === currentStep && progressText ? progressText : step}
-              </span>
+              <div className="flex-1">
+                <span className={`font-semibold block ${
+                    index <= currentStep ? 'text-white' : 'text-white/40'
+                }`}>{step}</span>
+                {index === currentStep && progressText && (
+                  <span className="text-sm text-white/60 mt-1 block">{progressText}</span>
+                )}
+              </div>
+              {index === currentStep && (
+                <div className="ml-4">
+                  <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
+                </div>
+              )}
             </div>
           ))}
         </div>
 
-        {/* Tip */}
-        <div className="mt-6 p-3 bg-primary-500/10 border border-primary-500/20 rounded-lg">
-          <p className="text-xs text-primary-300 text-center">
-            💡 Tip: File size and duration affect processing time
-          </p>
+        {/* Progress Bar */}
+        <div className="mt-8 h-2 bg-white/10 rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-gradient-to-r from-purple-500 via-blue-500 to-pink-500 transition-all duration-500 rounded-full"
+            style={{width: `${(currentStep / steps.length) * 100}%`}}
+          ></div>
         </div>
+        <p className="text-white/50 text-sm mt-2">
+          Step {currentStep + 1} of {steps.length}
+        </p>
       </div>
     </div>
   );

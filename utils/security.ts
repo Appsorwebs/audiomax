@@ -60,8 +60,21 @@ export const validateAudioFile = (file: File): { valid: boolean; error?: string 
   const maxSize = 100 * 1024 * 1024; // 100MB
   const allowedTypes = [
     'audio/mpeg',
+    'audio/mp3',
+    'audio/mpga',
     'audio/mp4',
+    'audio/x-m4a',
+    'audio/aac',
     'audio/wav',
+    'audio/x-wav',
+    'audio/flac',
+    'audio/x-flac',
+    'audio/aiff',
+    'audio/x-aiff',
+    'audio/3gpp',
+    'audio/amr',
+    'audio/opus',
+    'audio/ogg; codecs=opus',
     'audio/webm',
     'audio/ogg',
     'audio/m4a'
@@ -71,15 +84,18 @@ export const validateAudioFile = (file: File): { valid: boolean; error?: string 
     return { valid: false, error: 'File size exceeds 100MB limit' };
   }
   
-  if (!allowedTypes.includes(file.type)) {
+  const normalizedType = file.type.trim().toLowerCase();
+  const extension = file.name.split('.').pop()?.toLowerCase();
+  const validExtensions = ['mp3', 'mp4', 'm4a', 'wav', 'webm', 'ogg', 'oga', 'aac', 'flac', 'aif', 'aiff', 'caf', 'opus', '3gp', 'amr', 'mpeg', 'mpga'];
+  const hasAudioMime = normalizedType ? (allowedTypes.includes(normalizedType) || normalizedType.startsWith('audio/')) : false;
+  const hasValidExtension = !!extension && validExtensions.includes(extension);
+
+  if (!hasAudioMime && !hasValidExtension) {
     return { valid: false, error: 'Invalid file type. Only audio files are allowed' };
   }
-  
-  // Check file extension matches MIME type
-  const extension = file.name.split('.').pop()?.toLowerCase();
-  const validExtensions = ['mp3', 'mp4', 'm4a', 'wav', 'webm', 'ogg'];
-  
-  if (!extension || !validExtensions.includes(extension)) {
+
+  // When MIME is unavailable, require a known extension for best-effort validation.
+  if (!normalizedType && (!extension || !validExtensions.includes(extension))) {
     return { valid: false, error: 'Invalid file extension' };
   }
   
@@ -193,7 +209,7 @@ export const validateEnvironment = (): { secure: boolean; warnings: string[] } =
   }
   
   // Check for development tools
-  if (process.env.NODE_ENV === 'development') {
+  if (import.meta.env.DEV) {
     warnings.push('Running in development mode - ensure production build for deployment');
   }
   
@@ -208,7 +224,7 @@ export const validateEnvironment = (): { secure: boolean; warnings: string[] } =
 // Initialize security measures
 export const initializeSecurity = (): void => {
   // Disable right-click context menu in production
-  if (process.env.NODE_ENV === 'production') {
+  if (import.meta.env.PROD) {
     document.addEventListener('contextmenu', (e) => e.preventDefault());
     
     // Disable F12, Ctrl+Shift+I, etc.
@@ -226,7 +242,7 @@ export const initializeSecurity = (): void => {
   }
   
   // Clear console in production
-  if (process.env.NODE_ENV === 'production') {
+  if (import.meta.env.PROD) {
     console.clear();
     console.log('%c🔒 AudioMax by AppsOrWebs Limited', 'color: #0ea5e9; font-size: 20px; font-weight: bold;');
     console.log('%c⚠️ This is a protected application. Unauthorized access is prohibited.', 'color: #ef4444; font-size: 14px;');

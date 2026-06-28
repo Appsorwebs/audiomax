@@ -84,6 +84,19 @@ npm run ios:dev
 npm run android:dev
 ```
 
+### Test and Quality Gates
+
+```bash
+# TypeScript strict check
+npm run typecheck
+
+# Full test suite (unit + upload smoke)
+npm test
+
+# Audio upload format integration checks
+npm run test:audio-formats
+```
+
 ## 📱 Mobile App Deployment
 
 This app is ready for deployment to both app stores:

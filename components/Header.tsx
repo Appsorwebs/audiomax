@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { LogoIcon } from './icons/LogoIcon';
 import ThemeToggle from './ThemeToggle';
 import { User } from '../types';
@@ -12,117 +12,56 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ user, onLogout, onLoginClick, onHomeClick, onPricingClick }) => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
   return (
-    <header className="glass-premium border-b border-primary-500/20 sticky top-0 z-50 backdrop-blur-xl">
-      <div className="max-w-7xl mx-auto px-4 md:px-8 py-4">
-        <div className="flex items-center justify-between">
-          {/* Logo */}
-          <button
-            onClick={onHomeClick}
-            className="flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-primary-500 rounded-lg p-2 -m-2 group"
+    <header className="relative z-50 border-b border-white/10 backdrop-blur-xl bg-white/5">
+      <div className="container mx-auto px-4 md:px-8 py-4">
+        <div className="glass-card flex items-center justify-between">
+          <button 
+            onClick={onHomeClick} 
+            className="group flex items-center focus:outline-none focus:ring-2 focus:ring-purple-500 rounded-lg p-2 -m-1 transition-all duration-300 hover:scale-105"
           >
-            <div className="p-2 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-lg group-hover:shadow-lg group-hover:shadow-primary-500/50 transition-all">
-              <LogoIcon className="h-6 w-6 text-white" />
+            <div className="relative">
+              <LogoIcon className="h-10 w-10 text-white drop-shadow-lg group-hover:rotate-12 transition-transform duration-300" />
+              <div className="absolute inset-0 blur-xl bg-purple-500/50 group-hover:bg-purple-500/80 transition-all duration-300 -z-10"></div>
             </div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary-400 to-secondary-400 bg-clip-text text-transparent">
-              AudioMax
-            </h1>
+            <h1 className="text-2xl font-black ml-3 tracking-tight gradient-text">AudioMax</h1>
           </button>
-
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-6">
-            <button
-              onClick={onPricingClick}
-              className="text-neutral-300 hover:text-primary-400 transition-colors font-medium relative group"
-            >
-              Pricing
-              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-primary-400 to-secondary-400 group-hover:w-full transition-all duration-300" />
-            </button>
-          </div>
-
-          {/* Right Side Controls */}
-          <div className="flex items-center gap-3">
+          
+          <div className="flex items-center space-x-2 md:space-x-3">
             <ThemeToggle />
-
+            
             {user && !user.isGuest ? (
-              <div className="hidden md:flex items-center gap-4 border-l border-neutral-700/50 pl-4 ml-2">
-                <span className="text-sm text-neutral-400">
-                  {user.email}
-                  {user.subscription !== 'Free' && (
-                    <span className="badge badge-primary ml-2">{user.subscription}</span>
-                  )}
-                </span>
-                <button
+              <div className="flex items-center space-x-2 md:space-x-3">
+                <div className="hidden md:flex items-center glass-card px-4 py-2">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse mr-2"></div>
+                  <span className="text-sm font-semibold text-white">{user.email}</span>
+                </div>
+                <button 
                   onClick={onLogout}
-                  className="btn btn-secondary text-sm"
+                  className="glass-button text-sm font-semibold text-white hover:text-red-300 hover:border-red-500/50 transition-all duration-300 group"
                 >
-                  Logout
+                  <span className="group-hover:scale-110 inline-block transition-transform duration-300">👋</span>
+                  <span className="ml-2">Logout</span>
                 </button>
               </div>
             ) : (
-              <button
+              <button 
                 onClick={onLoginClick}
-                className="btn btn-gradient hidden md:inline-flex text-sm"
+                className="gradient-button text-sm font-bold px-6 py-2"
               >
+                <span className="mr-2">🚀</span>
                 Login / Sign Up
               </button>
             )}
-
-            {/* Mobile Menu Toggle */}
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="md:hidden btn-icon btn-secondary"
+            
+            <button 
+              onClick={onPricingClick}
+              className="hidden sm:inline-block glass-button text-sm font-semibold text-white group relative overflow-hidden"
             >
-              ☰
+              <span className="relative z-10">💎 Pricing</span>
             </button>
           </div>
         </div>
-
-        {/* Mobile Menu */}
-        {isMenuOpen && (
-          <div className="md:hidden mt-4 pt-4 border-t border-neutral-700/30 space-y-3">
-            <button
-              onClick={() => {
-                onPricingClick();
-                setIsMenuOpen(false);
-              }}
-              className="w-full text-left px-4 py-2 text-neutral-300 hover:bg-primary-500/10 rounded-lg transition-colors"
-            >
-              Pricing
-            </button>
-            {user && !user.isGuest ? (
-              <>
-                <div className="px-4 py-2 text-sm text-neutral-400">
-                  {user.email}
-                  {user.subscription !== 'Free' && (
-                    <span className="badge badge-primary ml-2">{user.subscription}</span>
-                  )}
-                </div>
-                <button
-                  onClick={() => {
-                    onLogout();
-                    setIsMenuOpen(false);
-                  }}
-                  className="w-full btn btn-secondary text-sm"
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => {
-                  onLoginClick();
-                  setIsMenuOpen(false);
-                }}
-                className="w-full btn btn-gradient text-sm"
-              >
-                Login / Sign Up
-              </button>
-            )}
-          </div>
-        )}
       </div>
     </header>
   );

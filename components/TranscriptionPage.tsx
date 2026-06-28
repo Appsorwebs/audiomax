@@ -10,7 +10,6 @@ import { SummaryIcon } from './icons/SummaryIcon';
 import { CopyIcon } from './icons/CopyIcon';
 import { TranslateIcon } from './icons/TranslateIcon';
 import { Spinner } from './ui/Spinner';
-import { slackService } from '../services/slackService';
 
 interface TranscriptionPageProps {
   meeting: Meeting;
@@ -28,20 +27,33 @@ const CopyButton: React.FC<{ textToCopy: string }> = ({ textToCopy }) => {
         });
     };
     return (
-        <button onClick={handleCopy} className="text-slate-400 hover:text-sky-400 transition-colors" title="Copy to clipboard">
-            {copied ? <span className="text-xs text-green-400">Copied!</span> : <CopyIcon className="h-4 w-4" />}
+        <button 
+            onClick={handleCopy} 
+            className="glass-button text-sm px-3 py-1.5 group hover:scale-110 transition-all duration-300" 
+            title="Copy to clipboard"
+        >
+            {copied ? (
+                <span className="text-xs text-green-300 font-bold animate-pulse">✓ Copied!</span>
+            ) : (
+                <span className="flex items-center">
+                    <CopyIcon className="h-4 w-4 group-hover:rotate-12 transition-transform duration-300" />
+                    <span className="ml-1.5">Copy</span>
+                </span>
+            )}
         </button>
     );
 };
 
 const SummarySection: React.FC<{ title: string; icon: React.ReactNode; copyText: string; children: React.ReactNode }> = ({ title, icon, copyText, children }) => (
-    <div className="relative bg-white dark:bg-slate-800/50 p-6 rounded-lg shadow-sm dark:shadow-none">
-        <div className="absolute top-4 right-4">
+    <div className="relative glass-card group hover:scale-[1.02] transition-all duration-300">
+        <div className="absolute top-4 right-4 z-10">
             <CopyButton textToCopy={copyText} />
         </div>
-        <h4 className="flex items-center text-lg font-semibold text-slate-800 dark:text-slate-200 mb-3">
-            {icon}
-            <span className="ml-2">{title}</span>
+        <h4 className="flex items-center text-xl font-bold text-white mb-4">
+            <div className="transform group-hover:scale-110 group-hover:rotate-6 transition-all duration-300">
+                {icon}
+            </div>
+            <span className="ml-3 gradient-text">{title}</span>
         </h4>
         {children}
     </div>
@@ -60,8 +72,6 @@ const TranscriptionPage: React.FC<TranscriptionPageProps> = ({ meeting, user, on
   const [activeTab, setActiveTab] = useState<'summary' | 'transcript' | 'translate'>('summary');
   const [targetLanguage, setTargetLanguage] = useState('Spanish');
   const [isTranslating, setIsTranslating] = useState(false);
-  const [sendingToSlack, setSendingToSlack] = useState(false);
-  const [slackMessage, setSlackMessage] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   
   const { id, transcript, summary: magicSummary, audioUrl, durationSeconds, translatedSummary, startTime, endTime } = meeting;
@@ -124,41 +134,6 @@ const TranscriptionPage: React.FC<TranscriptionPageProps> = ({ meeting, user, on
       }
   };
 
-  const handleSendToSlack = async () => {
-      if (!magicSummary) {
-          setSlackMessage('No summary available to send');
-          return;
-      }
-
-      setSendingToSlack(true);
-      setSlackMessage(null);
-
-      try {
-          const success = await slackService.sendMeetingSummary({
-              title: meeting.title,
-              duration: meeting.duration,
-              attendees: [], // Could be enhanced to include actual attendees
-              summary: magicSummary.executiveSummary,
-              actionItems: magicSummary.actionItems,
-              keyDecisions: magicSummary.keyDecisions,
-              recordedAt: meeting.startTime,
-              meetingUrl: window.location.href,
-          });
-
-          if (success) {
-              setSlackMessage('✅ Summary sent to Slack!');
-              setTimeout(() => setSlackMessage(null), 3000);
-          } else {
-              setSlackMessage('❌ Failed to send to Slack. Check your configuration.');
-          }
-      } catch (error) {
-          console.error('Error sending to Slack:', error);
-          setSlackMessage('❌ Error sending to Slack');
-      } finally {
-          setSendingToSlack(false);
-      }
-  };
-
   const progressPercentage = durationSeconds > 0 ? (currentTime / durationSeconds) * 100 : 0;
   
   const formatMeetingTime = (isoString: string) => {
@@ -171,28 +146,28 @@ const TranscriptionPage: React.FC<TranscriptionPageProps> = ({ meeting, user, on
 
   const renderSummary = (summary: MagicSummary, titlePrefix = "") => (
     <div className="space-y-6 animate-fade-in">
-        <SummarySection title={`${titlePrefix}Executive Summary`} icon={<SummaryIcon className="h-5 w-5 text-sky-500 dark:text-sky-400" />} copyText={summary.executiveSummary}>
-            <p className="text-slate-600 dark:text-slate-300 leading-relaxed">{summary.executiveSummary}</p>
+        <SummarySection title={`${titlePrefix}Executive Summary`} icon={<SummaryIcon className="h-6 w-6 text-blue-400" />} copyText={summary.executiveSummary}>
+            <p className="text-white/90 leading-relaxed text-lg">{summary.executiveSummary}</p>
         </SummarySection>
 
-        <SummarySection title={`${titlePrefix}Key Decisions`} icon={<DecisionIcon className="h-5 w-5 text-green-500 dark:text-green-400" />} copyText={decisionsToText(summary.keyDecisions)}>
-            <ul className="space-y-3 list-inside">
+        <SummarySection title={`${titlePrefix}Key Decisions`} icon={<DecisionIcon className="h-6 w-6 text-green-400" />} copyText={decisionsToText(summary.keyDecisions)}>
+            <ul className="space-y-4">
                 {summary.keyDecisions.map((d, i) => 
-                    <li key={i} className="text-slate-600 dark:text-slate-300">
-                        <span className="font-semibold text-slate-700 dark:text-slate-200">{d.decision}</span>
-                        {d.rationale && <p className="pl-1 mt-1 text-sm text-slate-500 dark:text-slate-400 italic">Rationale: {d.rationale}</p>}
+                    <li key={i} className="glass-card bg-white/5 border-l-4 border-green-400 hover:border-green-300 transition-all duration-300">
+                        <span className="font-bold text-white text-lg block mb-2">✓ {d.decision}</span>
+                        {d.rationale && <p className="text-white/70 text-sm italic">Rationale: {d.rationale}</p>}
                     </li>
                 )}
             </ul>
         </SummarySection>
 
-        <SummarySection title={`${titlePrefix}Action Items`} icon={<ActionItemIcon className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />} copyText={summary.actionItems.map(item => `- ${item.item} (Assignee: ${item.assignee})`).join('\n')}>
-            <ul className="space-y-3">
+        <SummarySection title={`${titlePrefix}Action Items`} icon={<ActionItemIcon className="h-6 w-6 text-yellow-400" />} copyText={summary.actionItems.map(item => `- ${item.item} (Assignee: ${item.assignee})`).join('\n')}>
+            <ul className="space-y-4">
                 {summary.actionItems.map((item, index) => (
-                    <li key={index} className="bg-slate-200 dark:bg-slate-700/50 p-3 rounded-md">
-                        <p className="text-slate-800 dark:text-slate-200">{item.item}</p>
-                        <span className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 bg-yellow-500/20 dark:bg-yellow-500/10 px-2 py-1 rounded-full inline-block mt-2">
-                            Assignee: {item.assignee}
+                    <li key={index} className="glass-card bg-white/5 border-l-4 border-yellow-400 hover:scale-[1.02] transition-all duration-300">
+                        <p className="text-white font-semibold mb-3">{item.item}</p>
+                        <span className="inline-flex items-center text-xs font-bold text-yellow-300 bg-yellow-500/20 px-3 py-1.5 rounded-full">
+                            👤 {item.assignee}
                         </span>
                     </li>
                 ))}
@@ -202,69 +177,67 @@ const TranscriptionPage: React.FC<TranscriptionPageProps> = ({ meeting, user, on
   );
 
   return (
-    <div className="w-full">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-6">
-        <audio ref={audioRef} src={audioUrl} preload="auto"></audio>
-        <button onClick={onBack} className="flex items-center gap-2 text-primary-400 hover:text-primary-300 transition-colors group">
-          <BackArrowIcon className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
-          Back to Dashboard
-        </button>
+    <div>
+      <audio ref={audioRef} src={audioUrl} preload="auto"></audio>
+      <button onClick={onBack} className="glass-button flex items-center mb-8 group">
+        <BackArrowIcon className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform duration-300" />
+        Back to Dashboard
+      </button>
 
-        <div className="glass-premium p-4 sm:p-6 rounded-xl">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <h2 className="text-xl sm:text-2xl font-bold text-neutral-100 truncate">{meeting.title}</h2>
-              <div className="text-xs sm:text-sm text-neutral-400 mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
-                <span>{new Date(startTime).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                <span className="hidden sm:inline text-neutral-600">&middot;</span>
-                <span>Start: {formatMeetingTime(startTime)}</span>
-                <span className="hidden md:inline text-neutral-600">&middot;</span>
-                <span>End: {formatMeetingTime(endTime)}</span>
-                <span className="hidden md:inline text-neutral-600">&middot;</span>
-                <span>Duration: {meeting.duration}</span>
-              </div>
-            </div>
-            {/* Slack Send Button */}
-            {magicSummary && (
-              <button
-                onClick={handleSendToSlack}
-                disabled={sendingToSlack}
-                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-all whitespace-nowrap flex items-center gap-2"
-                title="Send meeting summary to Slack"
-              >
-                {sendingToSlack ? (
-                  <>
-                    <span className="inline-block h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <span>🎯</span>
-                    Send to Slack
-                  </>
-                )}
-              </button>
-            )}
+      <div className="glass-card mb-8 relative overflow-hidden group" style={{animation: 'fade-in-up 0.6s ease-out'}}>
+        <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-blue-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <div className="relative z-10">
+          <h2 className="text-4xl font-black gradient-text truncate mb-4">{meeting.title}</h2>
+          <div className="flex flex-wrap items-center gap-4 text-sm text-white/70">
+              <span className="glass-card px-3 py-1.5 text-xs font-semibold">
+                📅 {new Date(startTime).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+              </span>
+              <span className="glass-card px-3 py-1.5 text-xs font-semibold">
+                ⏰ {formatMeetingTime(startTime)} - {formatMeetingTime(endTime)}
+              </span>
+              <span className="glass-card px-3 py-1.5 text-xs font-semibold">
+                ⏱️ {meeting.duration}
+              </span>
           </div>
-          
-          {/* Slack Status Message */}
-          {slackMessage && (
-            <div className="mt-3 px-3 py-2 bg-purple-500/20 border border-purple-500/30 rounded text-sm text-purple-300">
-              {slackMessage}
-            </div>
-          )}
         </div>
-        
-        <div className="border-b border-neutral-700/30">
-          <nav className="flex space-x-1 overflow-x-auto" aria-label="Tabs">
-            <button onClick={() => setActiveTab('summary')} className={`px-3 py-2 font-medium text-sm rounded-t-md transition-colors whitespace-nowrap ${activeTab === 'summary' ? 'glass-premium text-primary-400 border-b-2 border-primary-400' : 'text-neutral-400 hover:text-neutral-200 hover:bg-glass-light'}`}>Magic Summary</button>
-            <button onClick={() => setActiveTab('transcript')} className={`px-3 py-2 font-medium text-sm rounded-t-md transition-colors whitespace-nowrap ${activeTab === 'transcript' ? 'glass-premium text-primary-400 border-b-2 border-primary-400' : 'text-neutral-400 hover:text-neutral-200 hover:bg-glass-light'}`}>Transcript</button>
-              {canTranslate && (
-                <button onClick={() => setActiveTab('translate')} className={`px-3 py-2 font-medium text-sm rounded-t-md transition-colors ${activeTab === 'translate' ? 'bg-white dark:bg-slate-800/50 text-sky-600 dark:text-sky-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>Translate</button>
-              )}
-              {!canTranslate && (
-                <div className="px-3 py-2 font-medium text-sm text-slate-400 dark:text-slate-500 cursor-not-allowed" title={`Translation requires ${user.subscription === 'Free' ? 'Pro' : 'a higher'} plan`}>
-                  Translate 🔒
+      </div>
+      
+      <div className="mb-8 glass-card p-1" style={{animation: 'fade-in-up 0.6s ease-out 0.1s both'}}>
+          <nav className="flex space-x-1" aria-label="Tabs">
+              <button 
+                onClick={() => setActiveTab('summary')} 
+                className={`flex-1 px-4 py-3 font-bold text-sm rounded-lg transition-all duration-300 ${
+                  activeTab === 'summary' 
+                    ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-lg transform scale-105' 
+                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                ✨ Magic Summary
+              </button>
+              <button 
+                onClick={() => setActiveTab('transcript')} 
+                className={`flex-1 px-4 py-3 font-bold text-sm rounded-lg transition-all duration-300 ${
+                  activeTab === 'transcript' 
+                    ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-lg transform scale-105' 
+                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                📝 Transcript
+              </button>
+              {canTranslate ? (
+                <button 
+                  onClick={() => setActiveTab('translate')} 
+                  className={`flex-1 px-4 py-3 font-bold text-sm rounded-lg transition-all duration-300 ${
+                    activeTab === 'translate' 
+                      ? 'bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-lg transform scale-105' 
+                      : 'text-white/70 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  🌍 Translate
+                </button>
+              ) : (
+                <div className="flex-1 px-4 py-3 font-bold text-sm text-white/30 cursor-not-allowed flex items-center justify-center" title={`Translation requires ${user.subscription === 'Free' ? 'Pro' : 'a higher'} plan`}>
+                  🌍 Translate 🔒
                 </div>
               )}
           </nav>
@@ -354,7 +327,6 @@ const TranscriptionPage: React.FC<TranscriptionPageProps> = ({ meeting, user, on
                 </div>
             )}
         </div>
-      </div>
       </div>
     </div>
   );
