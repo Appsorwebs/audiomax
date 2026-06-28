@@ -3,9 +3,7 @@
    Featuring: Glassmorphism, Neumorphism, Gradient-Rich UI
    ============================================================================ */
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 /* ===== CSS Variables ===== */
 :root {
