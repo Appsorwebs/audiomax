@@ -57,27 +57,29 @@ function bufferToWav(buffer: AudioBuffer): Blob {
 
 const generateLocalTranscript = (durationSeconds: number): TranscriptLine[] => {
     const lines: TranscriptLine[] = [];
-    const speakerCount = Math.min(4, Math.max(2, Math.floor(durationSeconds / 60)));
-    const segmentDuration = 30;
-    const segments = Math.max(1, Math.ceil(durationSeconds / segmentDuration));
+    const minutes = Math.max(1, Math.round(durationSeconds / 60));
     
-    for (let i = 0; i < segments; i++) {
-        const minutes = Math.floor((i * segmentDuration) / 60);
-        const seconds = (i * segmentDuration) % 60;
-        const speakerNum = (i % speakerCount) + 1;
+    // Create up to 5 meaningful segments in offline mode
+    const speakers = ['Speaker 1', 'Speaker 2', 'Speaker 3', 'Speaker 4'];
+    const speakerCount = Math.min(4, Math.max(2, Math.min(3, minutes)));
+    const segmentCount = Math.min(5, Math.max(1, minutes));
+    
+    for (let i = 0; i < segmentCount; i++) {
+        const segmentMinutes = Math.floor((i * minutes * 60) / segmentCount / 60) || 0;
+        const segmentSeconds = Math.floor(((i * minutes * 60) / segmentCount) % 60) || 0;
         
         lines.push({
-            speaker: `Speaker ${speakerNum}`,
-            timestamp: `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`,
-            text: `Meeting audio segment ${i + 1}. The app is running in offline/demo mode. Add AI API keys in Settings to enable actual transcription.`
+            speaker: speakers[i % speakerCount],
+            timestamp: `${String(segmentMinutes).padStart(2, '0')}:${String(segmentSeconds).padStart(2, '0')}`,
+            text: `Meeting audio segment ${i + 1}. The app is in offline mode - configure API keys in Settings for actual transcription.`
         });
     }
     
     return lines;
 };
 
-const generateLocalSummary = (transcript: TranscriptLine[], duration: number): MagicSummary => {
-    const durationText = duration >= 60 ? `${Math.round(duration / 60)} minutes` : `${duration} seconds`;
+const generateLocalSummary = (transcript: TranscriptLine[], estimatedDuration: number): MagicSummary => {
+    const durationText = estimatedDuration >= 60 ? `${Math.round(estimatedDuration / 60)} minutes` : `${estimatedDuration} seconds`;
     const speakers = [...new Set(transcript.map(t => t.speaker))];
     
     return {
@@ -237,12 +239,10 @@ export const generateMeetingSummary = async (
         console.warn('Backend summary failed, using local mode');
     }
     
-    const totalDuration = transcript.reduce((acc, line) => {
-        const parts = line.timestamp.split(':').map(Number);
-        return acc + (parts.length === 2 ? parts[0] * 60 + parts[1] : 0);
-    }, 0);
+    // Use transcript length to estimate duration (segments * 30 seconds each)
+    const estimatedDuration = transcript.length * 30;
     
-    return generateLocalSummary(transcript, totalDuration);
+    return generateLocalSummary(transcript, estimatedDuration);
 };
 
 export const translateSummary = async (

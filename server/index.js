@@ -83,15 +83,20 @@ function getClientForProvider(provider, userApiKeys) {
 }
 
 function generateOfflineTranscript(durationSeconds, chunkIndex = 0) {
-  const segments = Math.max(1, Math.ceil(durationSeconds / 60));
+  const minutes = Math.max(1, Math.round(durationSeconds / 60));
+  const speakers = ['Speaker 1', 'Speaker 2', 'Speaker 3', 'Speaker 4'];
+  const speakerCount = Math.min(4, Math.max(2, Math.min(3, minutes)));
+  const segmentCount = Math.min(5, Math.max(1, minutes));
+  
   const lines = [];
-  for (let i = 0; i < segments; i++) {
-    const minutes = Math.floor(((chunkIndex * 59) + (i * 60)) / 60);
-    const seconds = ((chunkIndex * 59) + (i * 60)) % 60;
+  for (let i = 0; i < segmentCount; i++) {
+    const segmentMins = Math.floor((i * minutes) / segmentCount);
+    const segmentSecs = Math.floor(((i * minutes * 60) / segmentCount) % 60);
+    
     lines.push({
-      speaker: `Speaker ${(i % 3) + 1}`,
-      timestamp: `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`,
-      text: `[Offline Mode] Audio segment ${i + 1}. Configure API keys for actual transcription.`
+      speaker: speakers[i % speakerCount],
+      timestamp: `${String(segmentMins).padStart(2, '0')}:${String(segmentSecs).padStart(2, '0')}`,
+      text: `Meeting audio segment ${i + 1}. The app is in offline mode - configure API keys in Settings for actual transcription.`
     });
   }
   return lines;
