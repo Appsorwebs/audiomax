@@ -69,14 +69,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ user, isOpen, onClose, on
   const currentSettings = user.settings || { selectedModel: DEFAULT_MODEL, apiKeys: {} };
   const [selectedModel, setSelectedModel] = useState(currentSettings.selectedModel);
   const [apiKeys, setApiKeys] = useState(currentSettings.apiKeys);
+  const [useOfflineMode, setUseOfflineMode] = useState(
+    !user.settings?.apiKeys?.google && !user.settings?.apiKeys?.openai && !user.settings?.apiKeys?.anthropic
+  );
 
   if (!isOpen) return null;
 
   const handleSave = () => {
     onSave({
       selectedModel,
-      apiKeys
-    });
+      apiKeys,
+      useOfflineMode
+    } as UserSettings & { useOfflineMode?: boolean });
     onClose();
   };
 
@@ -123,6 +127,32 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ user, isOpen, onClose, on
 <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
               Add your AI provider API keys below to enable AI-powered transcription. Without API keys, the app works in offline mode with basic placeholder transcription.
             </p>
+            
+            {/* Offline Mode Toggle */}
+            <div className="mb-6 p-4 bg-slate-100 dark:bg-slate-700/50 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-semibold text-slate-800 dark:text-slate-200">Offline Mode</h4>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Use placeholder transcription without AI services</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setUseOfflineMode(!useOfflineMode);
+                    if (!useOfflineMode) {
+                      // Clear API keys when going offline
+                      setApiKeys({});
+                    }
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    useOfflineMode ? 'bg-sky-600' : 'bg-slate-300 dark:bg-slate-600'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+                    useOfflineMode ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+            </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {allowedProviders.includes('google') && (

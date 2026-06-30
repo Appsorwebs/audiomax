@@ -328,6 +328,13 @@ const handleOpenSettings = () => {
     setSelectedMeeting(meeting);
     setCurrentPage('transcription');
   };
+  
+  const handleDeleteMeeting = (meetingId: string) => {
+    if (confirm('Are you sure you want to delete this meeting?')) {
+      const updatedMeetings = currentUser.meetings?.filter(m => m.id !== meetingId) || [];
+      updateUserMeetings(updatedMeetings);
+    }
+  };
 
   const handleBackToDashboard = () => {
     setSelectedMeeting(null);
@@ -367,7 +374,7 @@ const handleOpenSettings = () => {
         return <PricingPage onBack={handleBackToDashboard} onPlanSelect={handlePlanSelect} currentPlan={currentUser.subscription} />;
       case 'dashboard':
       default:
-        return <Dashboard user={currentUser} onFileSelect={handleUploadAndProcess} onViewMeeting={handleViewMeeting} onRecord={() => setCurrentPage('recording')} onUpgrade={() => setCurrentPage('pricing')} onOpenSettings={handleOpenSettings} />;
+        return <Dashboard user={currentUser} onFileSelect={handleUploadAndProcess} onViewMeeting={handleViewMeeting} onRecord={() => setCurrentPage('recording')} onUpgrade={() => setCurrentPage('pricing')} onOpenSettings={handleOpenSettings} onDeleteMeeting={handleDeleteMeeting} />;
     }
   };
 

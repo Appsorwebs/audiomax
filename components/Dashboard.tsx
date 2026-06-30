@@ -14,6 +14,7 @@ interface DashboardProps {
   onRecord: () => void;
   onUpgrade: () => void;
   onOpenSettings: () => void;
+  onDeleteMeeting?: (meetingId: string) => void;
 }
 
 const StatCard: React.FC<{ title: string; value: string; total: string }> = ({ title, value, total }) => (
@@ -46,7 +47,7 @@ const ActionCard: React.FC<{ onClick: () => void; icon: React.ReactNode; title: 
 );
 
 
-const Dashboard: React.FC<DashboardProps> = ({ user, onFileSelect, onViewMeeting, onRecord, onUpgrade, onOpenSettings }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, onFileSelect, onViewMeeting, onRecord, onUpgrade, onOpenSettings, onDeleteMeeting }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const meetings = user.meetings || [];
      
@@ -185,15 +186,29 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onFileSelect, onViewMeeting
                                 <p className="text-sm text-white/60">{formatDate(meeting.startTime)} • {meeting.duration}</p>
                             </div>
                         </div>
-                        <div className="flex items-center space-x-4 shrink-0 ml-4 relative z-10">
-                             <span className={`text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm ${
+<div className="flex items-center space-x-4 shrink-0 ml-4 relative z-10">
+                              <span className={`text-xs font-bold px-3 py-1.5 rounded-full backdrop-blur-sm ${
                                 meeting.status === 'Transcribed' ? 'bg-green-500/30 text-green-300 shadow-lg shadow-green-500/20' : 
                                 meeting.status === 'Processing' ? 'bg-yellow-500/30 text-yellow-300 shadow-lg shadow-yellow-500/20' :
                                 'bg-purple-500/30 text-purple-300 shadow-lg shadow-purple-500/20'
-                            }`}>
+                              }`}>
                                 {meeting.status}
-                            </span>
-                            <RightArrowIcon className="h-5 w-5 text-white/50 group-hover:text-white group-hover:translate-x-1 transition-all duration-300" />
+                              </span>
+                              {onDeleteMeeting && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDeleteMeeting(meeting.id);
+                                  }}
+                                  className="p-1.5 glass-button text-red-400 hover:text-red-300"
+                                  title="Delete meeting"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              )}
+                              <RightArrowIcon className="h-5 w-5 text-white/50 group-hover:text-white group-hover:translate-x-1 transition-all duration-300" />
                         </div>
                     </button>
                 </li>
