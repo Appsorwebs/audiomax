@@ -94,19 +94,18 @@ const generateLocalSummary = (transcript: TranscriptLine[], estimatedDuration: n
     };
 };
 
+// Backend transcription - only used when VITE_API_URL is configured
 const tryBackendTranscription = async (
     audioFile: File,
     user: User,
     onProgress: (message: string) => void
 ): Promise<TranscriptLine[] | null> => {
-    // Check if we should even try backend
+    // If no API_URL configured, skip backend entirely
     const apiUrl = (import.meta as any).env?.VITE_API_URL;
     if (!apiUrl) return null;
     
     try {
-        onProgress('Checking backend availability...');
         const isHealthy = await checkBackendHealth();
-        
         if (!isHealthy) return null;
         
         const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -155,10 +154,7 @@ const tryBackendTranscription = async (
                         const absoluteSeconds = Math.floor(chunkStartTimeSeconds + lineSecondsWithinChunk);
                         const newMinutes = Math.floor(absoluteSeconds / 60);
                         const newSeconds = absoluteSeconds % 60;
-                        return {
-                            ...line,
-                            timestamp: `${String(newMinutes).padStart(2, '0')}:${String(newSeconds).padStart(2, '0')}`
-                        };
+                        return { ...line, timestamp: `${String(newMinutes).padStart(2, '0')}:${String(newSeconds).padStart(2, '0')}` };
                     });
                     combinedTranscript.push(...adjustedTranscript);
                 }
@@ -172,8 +168,7 @@ const tryBackendTranscription = async (
         await audioContext.close();
         onProgress('Combining transcripts...');
         return combinedTranscript.length > 0 ? combinedTranscript : null;
-    } catch (error) {
-        console.warn('Backend transcription failed, using local mode:', error);
+    } catch {
         return null;
     }
 };
@@ -207,19 +202,21 @@ export const transcribeAudio = async (
         throw new Error(`Audio exceeds ${MAX_DURATION_MINUTES} minute limit.`);
     }
     
-    onProgress('Working in offline mode...');
-    
-    // Try backend first (if configured), fallback to local
-    try {
-        const backendResult = await tryBackendTranscription(audioFile, user, onProgress);
-        if (backendResult && backendResult.length > 0) {
-            return backendResult;
+    // Try backend first if configured, otherwise use offline
+    const apiUrl = (import.meta as any).env?.VITE_API_URL;
+    if (apiUrl) {
+        onProgress('Connecting to backend...');
+        try {
+            const backendResult = await tryBackendTranscription(audioFile, user, onProgress);
+            if (backendResult && backendResult.length > 0) {
+                return backendResult;
+            }
+        } catch {
+            onProgress('Backend unavailable, using offline mode...');
         }
-    } catch {
-        // Backend failed, use offline mode
     }
     
-    onProgress('Generating local transcription...');
+    onProgress('Generating transcription...');
     return generateLocalTranscript(durationSeconds);
 };
 
