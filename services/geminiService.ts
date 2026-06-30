@@ -1,6 +1,7 @@
 import { TranscriptLine, MagicSummary, User } from "../types";
 import {
   transcribeAudioChunk as backendTranscribeAudioChunk,
+  generateMeetingSummary as backendGenerateMeetingSummary,
   translateSummary as backendTranslateSummary,
   checkBackendHealth
 } from "./backendService";
@@ -23,10 +24,10 @@ function bufferToWav(buffer: AudioBuffer): Blob {
         offset += 4;
     };
 
-    setUint32(0x46464952);
+    setUint32(0x46464952); // RIFF
     setUint32(length - 8);
-    setUint32(0x45564157);
-    setUint32(0x20746d66);
+    setUint32(0x45564157); // WAVE
+    setUint32(0x20746d66); // fmt 
     setUint32(16);
     setUint16(1);
     setUint16(numOfChan);
@@ -34,8 +35,7 @@ function bufferToWav(buffer: AudioBuffer): Blob {
     setUint32(buffer.sampleRate * 2 * numOfChan);
     setUint16(numOfChan * 2);
     setUint16(16);
-    setUint32(0x61746164);
-    setUint32(length - offset - 4);
+    setUint32(0x61746164); // data
 
     for (let i = 0; i < buffer.numberOfChannels; i++) {
         channels.push(buffer.getChannelData(i));
@@ -54,131 +54,73 @@ function bufferToWav(buffer: AudioBuffer): Blob {
     return new Blob([view], { type: 'audio/wav' });
 }
 
-const generateLocalTranscript = (durationSeconds: number): TranscriptLine[] => {
-    const lines: TranscriptLine[] = [];
-    const minutes = Math.max(1, Math.round(durationSeconds / 60));
-    
-    // Create up to 5 meaningful segments in offline mode
-    const speakers = ['Speaker 1', 'Speaker 2', 'Speaker 3', 'Speaker 4'];
-    const speakerCount = Math.min(4, Math.max(2, Math.min(3, minutes)));
-    const segmentCount = Math.min(5, Math.max(1, minutes));
-    
-    // Distribute timestamps across the actual duration
-    for (let i = 0; i < segmentCount; i++) {
-        const segmentMinutes = Math.floor((i * minutes * 60) / segmentCount / 60) || 0;
-        const segmentSecs = Math.floor(((i * minutes * 60) / segmentCount) % 60) || 0;
-        
-        lines.push({
-            speaker: speakers[i % speakerCount],
-            timestamp: `${String(segmentMinutes).padStart(2, '0')}:${String(segmentSecs).padStart(2, '0')}`,
-            text: `[Offline Demo] Segment ${i + 1}/${segmentCount} - Configure AI API keys in Settings for actual transcription.`
-        });
-    }
-    
-    return lines;
-};
-
-const generateLocalSummary = (transcript: TranscriptLine[], estimatedDuration: number): MagicSummary => {
-    const durationText = estimatedDuration >= 60 ? `${Math.round(estimatedDuration / 60)} minutes` : `${estimatedDuration} seconds`;
-    const speakers = [...new Set(transcript.map(t => t.speaker))];
-    
-    // Create more realistic offline summary based on segment count
-    const segmentCount = transcript.length;
-    const summaryPoints = [
-        `Meeting with ${speakers.length} participants over ${durationText}`,
-        `${segmentCount} audio segments detected - configure AI for actual speaker identification`,
-        `Conversation structure: Introduction → Main discussion → Wrap-up (estimated)`
-    ];
-    
-    return {
-        executiveSummary: `Offline Summary (${durationText}):\n\n• ${summaryPoints.join('\n• ')}\n\nNote: Configure API keys in Settings for actual AI-powered transcription with real speaker identification and content analysis.`,
-        actionItems: [
-            { item: "Review the audio file manually for detailed content extraction", assignee: "Team" },
-            { item: "Add AI API keys for automated transcription and analysis", assignee: "Admin" }
-        ],
-        keyDecisions: [
-            { decision: "Audio processed in offline demo mode", rationale: "No AI services configured - using pattern-based analysis" }
-        ]
-    };
-};
-
-// Backend transcription - only used when VITE_API_URL is configured
+// Backend transcription with proper error handling
 const tryBackendTranscription = async (
     audioFile: File,
     user: User,
     onProgress: (message: string) => void
-): Promise<TranscriptLine[] | null> => {
-    // If no API_URL configured, skip backend entirely
-    const apiUrl = (import.meta as any).env?.VITE_API_URL;
-    if (!apiUrl) return null;
+): Promise<TranscriptLine[]> => {
+    onProgress('Connecting to transcription service...');
     
-    try {
-        const isHealthy = await checkBackendHealth();
-        if (!isHealthy) return null;
+    const isHealthy = await checkBackendHealth();
+    if (!isHealthy) {
+        throw new Error('Backend server unavailable. Please start the backend server or configure AI API keys in Settings.');
+    }
+    
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const arrayBuffer = await audioFile.arrayBuffer();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    
+    const CHUNK_DURATION_SECONDS = 59;
+    const totalDuration = audioBuffer.duration;
+    const numberOfChunks = Math.ceil(totalDuration / CHUNK_DURATION_SECONDS);
+    onProgress(`Processing ${numberOfChunks} chunks...`);
+    
+    let combinedTranscript: TranscriptLine[] = [];
+    
+    for (let i = 0; i < numberOfChunks; i++) {
+        const chunkStartTimeSeconds = i * CHUNK_DURATION_SECONDS;
+        const endTime = Math.min(chunkStartTimeSeconds + CHUNK_DURATION_SECONDS, totalDuration);
+        const chunkDuration = endTime - chunkStartTimeSeconds;
         
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const arrayBuffer = await audioFile.arrayBuffer();
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        if (chunkDuration <= 0) continue;
         
-        const CHUNK_DURATION_SECONDS = 59;
-        const totalDuration = audioBuffer.duration;
-        const numberOfChunks = Math.ceil(totalDuration / CHUNK_DURATION_SECONDS);
-        onProgress(`Processing ${numberOfChunks} chunks...`);
+        const chunkBuffer = audioContext.createBuffer(
+            audioBuffer.numberOfChannels,
+            Math.ceil(chunkDuration * audioBuffer.sampleRate),
+            audioBuffer.sampleRate
+        );
         
-        let combinedTranscript: TranscriptLine[] = [];
-        
-        for (let i = 0; i < numberOfChunks; i++) {
-            const chunkStartTimeSeconds = i * CHUNK_DURATION_SECONDS;
-            const endTime = Math.min(chunkStartTimeSeconds + CHUNK_DURATION_SECONDS, totalDuration);
-            const chunkDuration = endTime - chunkStartTimeSeconds;
-            
-            if (chunkDuration <= 0) continue;
-            
-            const chunkBuffer = audioContext.createBuffer(
-                audioBuffer.numberOfChannels,
-                Math.ceil(chunkDuration * audioBuffer.sampleRate),
-                audioBuffer.sampleRate
-            );
-            
-            for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
-                const originalData = audioBuffer.getChannelData(channel);
-                const chunkData = chunkBuffer.getChannelData(channel);
-                const startOffset = Math.floor(chunkStartTimeSeconds * audioBuffer.sampleRate);
-                const endOffset = Math.floor(endTime * audioBuffer.sampleRate);
-                chunkData.set(originalData.subarray(startOffset, endOffset));
-            }
-            
-            const wavBlob = bufferToWav(chunkBuffer);
-            
-            try {
-                const chunkTranscript = await backendTranscribeAudioChunk(wavBlob, i, user?.email, undefined, undefined, user?.settings?.apiKeys);
-                if (chunkTranscript && chunkTranscript.length > 0) {
-                    const adjustedTranscript = chunkTranscript.map(line => {
-                        const timeParts = line.timestamp.split(':').map(Number);
-                        if (timeParts.length !== 2 || isNaN(timeParts[0]) || isNaN(timeParts[1])) {
-                            return line;
-                        }
-                        const lineSecondsWithinChunk = timeParts[0] * 60 + timeParts[1];
-                        const absoluteSeconds = Math.floor(chunkStartTimeSeconds + lineSecondsWithinChunk);
-                        const newMinutes = Math.floor(absoluteSeconds / 60);
-                        const newSeconds = absoluteSeconds % 60;
-                        return { ...line, timestamp: `${String(newMinutes).padStart(2, '0')}:${String(newSeconds).padStart(2, '0')}` };
-                    });
-                    combinedTranscript.push(...adjustedTranscript);
-                }
-            } catch (error) {
-                console.warn(`Chunk ${i + 1} failed, continuing...`, error);
-            }
-            
-            await new Promise(resolve => setTimeout(resolve, 100));
+        for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+            const originalData = audioBuffer.getChannelData(channel);
+            const chunkData = chunkBuffer.getChannelData(channel);
+            const startOffset = Math.floor(chunkStartTimeSeconds * audioBuffer.sampleRate);
+            const endOffset = Math.floor(endTime * audioBuffer.sampleRate);
+            chunkData.set(originalData.subarray(startOffset, endOffset));
         }
         
-        await audioContext.close();
-        onProgress('Combining transcripts...');
-        return combinedTranscript.length > 0 ? combinedTranscript : null;
-    } catch {
-        return null;
+        const wavBlob = bufferToWav(chunkBuffer);
+        
+        const chunkTranscript = await backendTranscribeAudioChunk(wavBlob, i, user?.email, undefined, undefined, user?.settings?.apiKeys);
+        const adjustedTranscript = chunkTranscript.map(line => {
+            const timeParts = line.timestamp.split(':').map(Number);
+            if (timeParts.length !== 2 || isNaN(timeParts[0]) || isNaN(timeParts[1])) {
+                return line;
+            }
+            const lineSecondsWithinChunk = timeParts[0] * 60 + timeParts[1];
+            const absoluteSeconds = Math.floor(chunkStartTimeSeconds + lineSecondsWithinChunk);
+            const newMinutes = Math.floor(absoluteSeconds / 60);
+            const newSeconds = absoluteSeconds % 60;
+            return { ...line, timestamp: `${String(newMinutes).padStart(2, '0')}:${String(newSeconds).padStart(2, '0')}` };
+        });
+        combinedTranscript.push(...adjustedTranscript);
+        
+        await new Promise(resolve => setTimeout(resolve, 100));
     }
+    
+    await audioContext.close();
+    onProgress('Combining transcripts...');
+    return combinedTranscript;
 };
 
 export const transcribeAudio = async (
@@ -210,59 +152,29 @@ export const transcribeAudio = async (
         throw new Error(`Audio exceeds ${MAX_DURATION_MINUTES} minute limit.`);
     }
     
-    // Try backend first if configured, otherwise use offline
-    const apiUrl = (import.meta as any).env?.VITE_API_URL;
-    if (apiUrl) {
-        onProgress('Connecting to backend...');
-        try {
-            const backendResult = await tryBackendTranscription(audioFile, user, onProgress);
-            if (backendResult && backendResult.length > 0) {
-                return backendResult;
-            }
-        } catch {
-            onProgress('Backend unavailable, using offline mode...');
-        }
-    }
-    
-    onProgress('Generating transcription...');
-    return generateLocalTranscript(durationSeconds);
+    return tryBackendTranscription(audioFile, user, onProgress);
 };
 
 export const generateMeetingSummary = async (
     transcript: TranscriptLine[],
     user: User,
-    durationSeconds?: number
+    onProgress?: (message: string) => void
 ): Promise<MagicSummary> => {
-    // Use actual duration if provided, otherwise estimate from transcript
-    const estimatedDuration = durationSeconds || (transcript.length * 30);
-    return generateLocalSummary(transcript, estimatedDuration);
+    return await backendGenerateMeetingSummary(transcript, user?.email, onProgress, undefined, user?.settings?.apiKeys);
 };
 
 export const translateSummary = async (
     summary: MagicSummary,
-    targetLanguage: string
+    targetLanguage: string,
+    onProgress?: (message: string) => void
 ): Promise<MagicSummary> => {
-    // Simple offline translation prefix
-    return {
-        executiveSummary: `[Translated to ${targetLanguage}] ${summary.executiveSummary}`,
-        actionItems: summary.actionItems,
-        keyDecisions: summary.keyDecisions
-    };
+    return await backendTranslateSummary(summary, targetLanguage, onProgress);
 };
 
 export const isLiveMode = async (): Promise<boolean> => {
-    // If no API_URL configured, we're offline
     const apiUrl = (import.meta as any).env?.VITE_API_URL;
     if (!apiUrl) return false;
     
-    try {
-        const isHealthy = await checkBackendHealth();
-        if (!isHealthy) return false;
-        
-        const response = await fetch(`${apiUrl}/api/health`);
-        const data = await response.json();
-        return !data.offlineMode;
-    } catch {
-        return false;
-    }
+    const isHealthy = await checkBackendHealth();
+    return isHealthy;
 };

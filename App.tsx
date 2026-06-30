@@ -219,7 +219,7 @@ const App: React.FC = () => {
         }
         setCurrentStep(2);
 
-        const summary = await generateMeetingSummary(transcript, currentUser, durationSeconds);
+        const summary = await generateMeetingSummary(transcript, currentUser);
         setCurrentStep(3);
         
         const startTime = new Date();
@@ -262,7 +262,7 @@ const App: React.FC = () => {
         if (errorMessage.includes('limit')) {
           alert(`Limit reached: ${errorMessage}`);
         } else {
-          alert(`Processing error: ${errorMessage}\n\nThe app will continue in offline mode with basic transcription.`);
+          alert(`Processing error: ${errorMessage}\n\nPlease ensure the backend server is running and AI API keys are configured in Settings.`);
         }
         
         handleBackToDashboard();

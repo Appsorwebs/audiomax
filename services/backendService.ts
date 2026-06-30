@@ -1,5 +1,5 @@
 // Backend API Service
-// Works offline with no network calls when running without AI services
+// Requires backend server with AI API keys configured
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || '';
 
@@ -15,25 +15,19 @@ interface MagicSummary {
   keyDecisions: Array<{ decision: string; rationale?: string; }>;
 }
 
-// Check if we should skip backend (no server configured)
-const shouldSkipBackend = (): boolean => {
-  // If no API_URL is configured, we're in pure offline mode
-  return !API_URL;
-};
-
 let backendAvailable: boolean | null = null;
 
 export const checkBackendHealth = async (): Promise<boolean> => {
-  if (shouldSkipBackend()) {
+  if (backendAvailable !== null) return backendAvailable;
+  
+  if (!API_URL) {
     backendAvailable = false;
     return false;
   }
   
-  if (backendAvailable !== null) return backendAvailable;
-  
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1000);
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
     const response = await fetch(`${API_URL}/api/health`, { method: 'GET', signal: controller.signal });
     clearTimeout(timeoutId);
     backendAvailable = response.ok;
@@ -49,10 +43,6 @@ export const transcribeAudioChunk = async (
   onProgress?: (message: string) => void, modelId?: string,
   apiKeys?: { google?: string; openai?: string; anthropic?: string }
 ): Promise<TranscriptLine[]> => {
-  if (shouldSkipBackend()) {
-    throw new Error('offline-mode');
-  }
-  
   const formData = new FormData();
   formData.append('audio', audioChunk);
   formData.append('chunkIndex', chunkIndex.toString());
@@ -78,10 +68,6 @@ export const generateMeetingSummary = async (
 ): Promise<MagicSummary> => {
   if (onProgress) onProgress('Generating meeting summary...');
   
-  if (shouldSkipBackend()) {
-    throw new Error('offline-mode');
-  }
-
   const response = await fetch(`${API_URL}/api/generate-summary`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -102,10 +88,6 @@ export const translateSummary = async (
 ): Promise<MagicSummary> => {
   if (onProgress) onProgress(`Translating summary to ${targetLanguage}...`);
   
-  if (shouldSkipBackend()) {
-    throw new Error('offline-mode');
-  }
-
   const response = await fetch(`${API_URL}/api/translate-summary`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
