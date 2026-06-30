@@ -9,7 +9,7 @@ import AuthPage from './components/AuthPage';
 import SettingsModal from './components/SettingsModal';
 import AdminDashboard from './components/AdminDashboard';
 import Credits from './components/Credits';
-import ApiKeySetup from './components/ApiKeySetup';
+
 import { Meeting, MagicSummary, User, SubscriptionPlan, UserSettings } from './types';
 import { PLAN_LIMITS } from './constants';
 import Header from './components/Header';
@@ -127,13 +127,7 @@ const formatDuration = (seconds: number) => {
     return `${hStr}${mStr}${sStr}`.trim() || '0s';
 };
 
-const hasConfiguredApiKey = (user: User): boolean => {
-  return Boolean(
-    user.settings?.apiKeys?.google ||
-    localStorage.getItem('user_api_key') ||
-    import.meta.env.VITE_GEMINI_API_KEY
-  );
-};
+
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User>(authService.getCurrentUser() || createGuestUser());
@@ -144,15 +138,8 @@ const App: React.FC = () => {
   const [processingProgressText, setProcessingProgressText] = useState('');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
-  const [needsApiKey, setNeedsApiKey] = useState(false);
-
-  // Check if API key is available
-  useEffect(() => {
-    setNeedsApiKey(!hasConfiguredApiKey(currentUser));
-  }, [currentUser]);
-
   const handleApiKeySet = () => {
-    setNeedsApiKey(!hasConfiguredApiKey(currentUser));
+    // no-op; key stored in settings for optional fallback
   };
 
   // Admin dashboard keyboard shortcut (Ctrl+Alt+A)
@@ -180,16 +167,11 @@ const App: React.FC = () => {
 
   const handleUploadAndProcess = async (audioFile: File) => {
     if (!currentUser) return;
-
-    if (!hasConfiguredApiKey(currentUser)) {
-      alert('A Gemini API key is required for transcription. Add your key to continue.');
-      setNeedsApiKey(true);
-      return;
-    }
-
+    
+    // API key is managed server-side; users can still add their own in Settings.
     const fileValidation = validateAudioFile(audioFile);
     if (!fileValidation.valid) {
-      alert(fileValidation.error || 'Invalid audio file. Please choose another file.');
+     alert(fileValidation.error || 'Invalid audio file. Please choose another file.');
       return;
     }
     
@@ -265,7 +247,6 @@ const App: React.FC = () => {
     } catch (error: any) {
         console.error("Processing failed:", error);
         
-        // Better error message handling
         let errorMessage = "Unknown error occurred";
         if (error && typeof error === 'object') {
           if (error.message) {
@@ -277,14 +258,11 @@ const App: React.FC = () => {
           errorMessage = error;
         }
         
-        // Check if it's an API key related error
-        if (errorMessage.includes('API key') || errorMessage.includes('unauthorized') || errorMessage.includes('No API key')) {
-          alert(`🔑 API Key Required\n\nTo use AudioMax transcription:\n\n1. Get a Gemini API key from: https://ai.google.dev/\n2. Add it in Settings or save it as browser localStorage key 'user_api_key'\n\nError details: ${errorMessage}`);
-          setNeedsApiKey(true);
-        } else if (/failed to fetch|network request failed|networkerror|load failed/i.test(errorMessage)) {
-          alert(`Network error while contacting Gemini: ${errorMessage}\n\nQuick checks:\n1. Verify internet access\n2. Disable VPN/ad-blocker/firewall rules that block generativelanguage.googleapis.com\n3. Confirm your API key is valid\n\nNote: This app does not require a local backend server for transcription.`);
+        // User-friendly error handling
+        if (errorMessage.includes('limit')) {
+          alert(`Limit reached: ${errorMessage}`);
         } else {
-          alert(`An error occurred during processing: ${errorMessage}\n\nPlease check the console for more details and ensure your API key is set up correctly.`);
+          alert(`Processing error: ${errorMessage}\n\nThe app will continue in offline mode with basic transcription.`);
         }
         
         handleBackToDashboard();
@@ -324,14 +302,14 @@ const App: React.FC = () => {
     }
   };
 
-  const handleOpenSettings = () => {
-    if (currentUser.isGuest) {
-      alert("Please sign up or log in to configure AI settings.");
-      setCurrentPage('auth');
-      return;
-    }
-    setIsSettingsOpen(true);
-  };
+const handleOpenSettings = () => {
+     if (currentUser.isGuest) {
+       alert("Please sign up or log in to configure settings.");
+       setCurrentPage('auth');
+       return;
+     }
+     setIsSettingsOpen(true);
+   };
   
   const handlePlanSelect = (plan: SubscriptionPlan) => {
     if (currentUser.isGuest) {
@@ -415,19 +393,11 @@ const App: React.FC = () => {
             onPricingClick={() => setCurrentPage('pricing')} 
           />
 
-          {needsApiKey ? (
-            <div className="flex-1 flex items-center justify-center p-4">
-              <div className="glass-card max-w-2xl w-full" style={{animation: 'scale-in 0.5s ease-out'}}>
-                <ApiKeySetup onApiKeySet={handleApiKeySet} />
-              </div>
-            </div>
-          ) : (
             <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">
               <div className="max-w-7xl mx-auto" style={{animation: 'fade-in-up 0.6s ease-out'}}>
                 {renderPage()}
               </div>
             </main>
-          )}
           
           {/* Admin Dashboard */}
           {isAdminDashboardOpen && (

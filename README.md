@@ -63,9 +63,11 @@ cd audiomax
 # Install dependencies
 npm install
 
-# Start development server
+# Start development server (works without AI API keys!)
 npm run dev
 ```
+
+**Note**: The app works in offline/demo mode without any API keys. Add AI API keys in Settings for actual transcription and summarization.
 
 ### Mobile Development
 

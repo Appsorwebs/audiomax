@@ -42,17 +42,13 @@ const ModelCard: React.FC<{
   model: AIModel;
   isSelected: boolean;
   onSelect: () => void;
-  hasApiKey: boolean;
-}> = ({ model, isSelected, onSelect, hasApiKey }) => (
+}> = ({ model, isSelected, onSelect }) => (
   <button
     onClick={onSelect}
-    disabled={!hasApiKey}
     className={`w-full p-4 text-left rounded-lg border transition-all ${
       isSelected 
         ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20' 
-        : hasApiKey
-          ? 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-          : 'border-slate-200 dark:border-slate-700 opacity-50 cursor-not-allowed'
+        : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
     }`}
   >
     <div className="flex justify-between items-start mb-2">
@@ -66,11 +62,6 @@ const ModelCard: React.FC<{
       </span>
     </div>
     <p className="text-sm text-slate-600 dark:text-slate-400">{model.description}</p>
-    {!hasApiKey && (
-      <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
-        ⚙️ Requires API key configuration
-      </p>
-    )}
   </button>
 );
 
@@ -96,12 +87,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ user, isOpen, onClose, on
   const getModelsForProvider = (provider: string) => 
     AVAILABLE_AI_MODELS.filter(model => model.provider === provider);
 
-  const hasApiKeyForProvider = (provider: string): boolean => {
-    // Check if user has provided their own API key
-    const key = apiKeys[provider as keyof typeof apiKeys];
-    return Boolean(key && key.trim().length > 0);
-  };
-
   const getAllowedProvidersForPlan = (plan: SubscriptionPlan): string[] => {
     const limits = PLAN_LIMITS[plan];
     if (limits.features.customAiModels) {
@@ -119,7 +104,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ user, isOpen, onClose, on
     <div className="fixed inset-0 bg-slate-900 bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center p-6 border-b border-slate-200 dark:border-slate-700">
-          <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">AI Settings</h3>
+          <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">Settings</h3>
           <button
             onClick={onClose}
             className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
@@ -135,8 +120,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ user, isOpen, onClose, on
           {/* API Keys Section */}
           <div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">API Keys</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
-              Add your AI provider API keys below. Your keys are stored locally in your browser and sent directly to the backend server - they are never stored on any external servers.
+<p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
+              Add your AI provider API keys below to enable AI-powered transcription. Without API keys, the app works in offline mode with basic placeholder transcription.
             </p>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -176,7 +161,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ user, isOpen, onClose, on
           <div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">AI Model Selection</h3>
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
-              Choose the AI model for transcription and summarization. Models require their respective API keys.
+              Choose the AI model for transcription and summarization. Models require their respective API keys. Without API keys, the app uses offline placeholder transcription.
             </p>
 
             {/* Google Models */}
@@ -190,7 +175,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ user, isOpen, onClose, on
                       model={model}
                       isSelected={selectedModel === model.id}
                       onSelect={() => setSelectedModel(model.id)}
-                      hasApiKey={hasApiKeyForProvider('google')}
                     />
                   ))}
                 </div>
@@ -208,7 +192,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ user, isOpen, onClose, on
                       model={model}
                       isSelected={selectedModel === model.id}
                       onSelect={() => setSelectedModel(model.id)}
-                      hasApiKey={hasApiKeyForProvider('anthropic')}
                     />
                   ))}
                 </div>
@@ -226,7 +209,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ user, isOpen, onClose, on
                       model={model}
                       isSelected={selectedModel === model.id}
                       onSelect={() => setSelectedModel(model.id)}
-                      hasApiKey={hasApiKeyForProvider('openai')}
                     />
                   ))}
                 </div>

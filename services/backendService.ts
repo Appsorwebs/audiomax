@@ -1,5 +1,5 @@
 // Backend API Service
-// Communicates with the AudioMax backend server for AI operations
+// Gracefully handles backend unavailability with offline fallbacks
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001';
 
@@ -21,9 +21,33 @@ interface MagicSummary {
   }>;
 }
 
-/**
- * Transcribe audio using the backend API
- */
+// Backend health cache
+let backendAvailable: boolean | null = null;
+
+export const checkBackendHealth = async (): Promise<boolean> => {
+  // Return cached result if available
+  if (backendAvailable !== null) {
+    return backendAvailable;
+  }
+  
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    
+    const response = await fetch(`${API_URL}/api/health`, {
+      method: 'GET',
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    backendAvailable = response.ok;
+    return backendAvailable;
+  } catch (error) {
+    backendAvailable = false;
+    return false;
+  }
+};
+
 export const transcribeAudioChunk = async (
   audioChunk: File | Blob,
   chunkIndex: number = 0,
@@ -32,6 +56,11 @@ export const transcribeAudioChunk = async (
   modelId?: string,
   apiKeys?: { google?: string; openai?: string; anthropic?: string }
 ): Promise<TranscriptLine[]> => {
+  // Check backend health first
+  if (!await checkBackendHealth()) {
+    throw new Error('Backend unavailable - offline mode');
+  }
+  
   const formData = new FormData();
   formData.append('audio', audioChunk);
   formData.append('chunkIndex', chunkIndex.toString());
@@ -63,9 +92,6 @@ export const transcribeAudioChunk = async (
   return data.transcript;
 };
 
-/**
- * Generate meeting summary using the backend API
- */
 export const generateMeetingSummary = async (
   transcript: TranscriptLine[],
   userId?: string,
@@ -75,6 +101,11 @@ export const generateMeetingSummary = async (
 ): Promise<MagicSummary> => {
   if (onProgress) {
     onProgress('Generating meeting summary...');
+  }
+  
+  // Check backend health first
+  if (!await checkBackendHealth()) {
+    throw new Error('Backend unavailable - offline mode');
   }
 
   const response = await fetch(`${API_URL}/api/generate-summary`, {
@@ -94,9 +125,6 @@ export const generateMeetingSummary = async (
   return data.summary;
 };
 
-/**
- * Translate summary using the backend API
- */
 export const translateSummary = async (
   summary: MagicSummary,
   targetLanguage: string,
@@ -106,6 +134,11 @@ export const translateSummary = async (
 ): Promise<MagicSummary> => {
   if (onProgress) {
     onProgress(`Translating summary to ${targetLanguage}...`);
+  }
+  
+  // Check backend health first
+  if (!await checkBackendHealth()) {
+    throw new Error('Backend unavailable - offline mode');
   }
 
   const response = await fetch(`${API_URL}/api/translate-summary`, {
@@ -123,19 +156,4 @@ export const translateSummary = async (
 
   const data = await response.json();
   return data.summary;
-};
-
-/**
- * Check backend health
- */
-export const checkBackendHealth = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${API_URL}/api/health`, {
-      method: 'GET'
-    });
-    return response.ok;
-  } catch (error) {
-    console.error('Backend health check failed:', error);
-    return false;
-  }
 };
