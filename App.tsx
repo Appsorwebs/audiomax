@@ -219,7 +219,7 @@ const App: React.FC = () => {
         }
         setCurrentStep(2);
 
-        const summary = await generateMeetingSummary(transcript, currentUser);
+        const summary = await generateMeetingSummary(transcript, currentUser, durationSeconds);
         setCurrentStep(3);
         
         const startTime = new Date();

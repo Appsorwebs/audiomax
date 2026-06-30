@@ -212,7 +212,7 @@ const TranscriptionPage: React.FC<TranscriptionPageProps> = ({ meeting, user, on
                     : 'text-white/70 hover:text-white hover:bg-white/10'
                 }`}
               >
-                ✨ Magic Summary
+                ✨ Summary
               </button>
               <button 
                 onClick={() => setActiveTab('transcript')} 

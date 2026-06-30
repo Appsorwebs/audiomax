@@ -1,7 +1,6 @@
 import { TranscriptLine, MagicSummary, User } from "../types";
 import {
   transcribeAudioChunk as backendTranscribeAudioChunk,
-  generateMeetingSummary as backendGenerateMeetingSummary,
   translateSummary as backendTranslateSummary,
   checkBackendHealth
 } from "./backendService";
@@ -65,13 +64,16 @@ const generateLocalTranscript = (durationSeconds: number): TranscriptLine[] => {
     const segmentCount = Math.min(5, Math.max(1, minutes));
     
     for (let i = 0; i < segmentCount; i++) {
-        const segmentMinutes = Math.floor((i * minutes * 60) / segmentCount / 60) || 0;
-        const segmentSeconds = Math.floor(((i * minutes * 60) / segmentCount) % 60) || 0;
+        // Spread segments across the actual duration
+        const totalSeconds = minutes * 60;
+        const segmentPosition = Math.floor((i * totalSeconds) / segmentCount);
+        const segmentMinutes = Math.floor(segmentPosition / 60);
+        const segmentSecs = segmentPosition % 60;
         
         lines.push({
             speaker: speakers[i % speakerCount],
-            timestamp: `${String(segmentMinutes).padStart(2, '0')}:${String(segmentSeconds).padStart(2, '0')}`,
-            text: `Meeting audio segment ${i + 1}. The app is in offline mode - configure API keys in Settings for actual transcription.`
+            timestamp: `${String(segmentMinutes).padStart(2, '0')}:${String(segmentSecs).padStart(2, '0')}`,
+            text: `Meeting audio segment ${i + 1} of ${segmentCount}. The app is in offline mode - configure API keys in Settings for actual transcription.`
         });
     }
     
@@ -222,10 +224,11 @@ export const transcribeAudio = async (
 
 export const generateMeetingSummary = async (
     transcript: TranscriptLine[],
-    user: User
+    user: User,
+    durationSeconds?: number
 ): Promise<MagicSummary> => {
-    // Use estimated duration from transcript
-    const estimatedDuration = transcript.length * 30;
+    // Use actual duration if provided, otherwise estimate from transcript
+    const estimatedDuration = durationSeconds || (transcript.length * 30);
     return generateLocalSummary(transcript, estimatedDuration);
 };
 
