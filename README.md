@@ -52,6 +52,7 @@ For detailed design documentation, see [UI_UPGRADE_GUIDE.md](./UI_UPGRADE_GUIDE.
 - Node.js 18+
 - npm or yarn
 - For mobile development: Xcode (iOS) and/or Android Studio (Android)
+- **AI API key required for transcription** (Gemini recommended)
 
 ### Installation
 
@@ -63,11 +64,25 @@ cd audiomax
 # Install dependencies
 npm install
 
-# Start development server (works without AI API keys!)
+# Start development server
 npm run dev
 ```
 
-**Note**: The app works in offline/demo mode without any API keys. Add AI API keys in Settings for actual transcription and summarization.
+### Backend Setup (Required for Transcription)
+
+```bash
+# In a separate terminal
+cd server
+npm install
+
+# Create .env with your API key:
+echo "GEMINI_API_KEY=your_actual_gemini_key" > .env
+
+# Start backend server
+node index.js
+```
+
+**Note**: The app requires valid AI API keys configured on the backend server for audio transcription and summarization.
 
 ### Mobile Development
 
