@@ -140,12 +140,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onFileSelect, onViewMeeting
           <div className="relative z-10">
             <p className="text-sm font-medium text-white/70 mb-2">Your current plan</p>
             <p className="text-2xl font-black gradient-text mb-3">{user.subscription}</p>
-            <button 
-              onClick={onUpgrade} 
-              className="gradient-button text-sm px-6 py-2 text-white font-bold"
-            >
-              ✨ Upgrade Plan
-            </button>
+            {user.subscription !== 'Enterprise' && (
+              <button 
+                onClick={onUpgrade} 
+                className="gradient-button text-sm px-6 py-2 text-white font-bold"
+              >
+                ✨ Upgrade Plan
+              </button>
+            )}
             {(minutesLimitReached || uploadsLimitReached) && (
               <p className="text-xs text-red-400 mt-3 font-semibold">
                 {minutesLimitReached && "⚠️ Transcription limit reached. "}
