@@ -1,0 +1,14 @@
+{
+  "services": [
+    {
+      "name": "audiomax-backend",
+      "source": {
+        "type": "dockerfile",
+        "repo": "https://github.com/Appsorwebs/audiomax"
+      },
+      "variables": {
+        "NODE_ENV": "production"
+      }
+    }
+  ]
+}
