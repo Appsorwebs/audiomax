@@ -63,17 +63,15 @@ const generateLocalTranscript = (durationSeconds: number): TranscriptLine[] => {
     const speakerCount = Math.min(4, Math.max(2, Math.min(3, minutes)));
     const segmentCount = Math.min(5, Math.max(1, minutes));
     
+    // Distribute timestamps across the actual duration
     for (let i = 0; i < segmentCount; i++) {
-        // Spread segments across the actual duration
-        const totalSeconds = minutes * 60;
-        const segmentPosition = Math.floor((i * totalSeconds) / segmentCount);
-        const segmentMinutes = Math.floor(segmentPosition / 60);
-        const segmentSecs = segmentPosition % 60;
+        const segmentMinutes = Math.floor((i * minutes * 60) / segmentCount / 60) || 0;
+        const segmentSecs = Math.floor(((i * minutes * 60) / segmentCount) % 60) || 0;
         
         lines.push({
             speaker: speakers[i % speakerCount],
             timestamp: `${String(segmentMinutes).padStart(2, '0')}:${String(segmentSecs).padStart(2, '0')}`,
-            text: `Meeting audio segment ${i + 1} of ${segmentCount}. The app is in offline mode - configure API keys in Settings for actual transcription.`
+            text: `[Offline Demo] Segment ${i + 1}/${segmentCount} - Configure AI API keys in Settings for actual transcription.`
         });
     }
     
@@ -84,14 +82,22 @@ const generateLocalSummary = (transcript: TranscriptLine[], estimatedDuration: n
     const durationText = estimatedDuration >= 60 ? `${Math.round(estimatedDuration / 60)} minutes` : `${estimatedDuration} seconds`;
     const speakers = [...new Set(transcript.map(t => t.speaker))];
     
+    // Create more realistic offline summary based on segment count
+    const segmentCount = transcript.length;
+    const summaryPoints = [
+        `Meeting with ${speakers.length} participants over ${durationText}`,
+        `${segmentCount} audio segments detected - configure AI for actual speaker identification`,
+        `Conversation structure: Introduction → Main discussion → Wrap-up (estimated)`
+    ];
+    
     return {
-        executiveSummary: `This meeting recording (${durationText} long) contains ${transcript.length} segments with ${speakers.length} speaker${speakers.length > 1 ? 's' : ''}: ${speakers.join(', ')}. The audio has been processed successfully in offline mode. To get AI-powered transcription and analysis, configure API keys in Settings.`,
+        executiveSummary: `Offline Summary (${durationText}):\n\n• ${summaryPoints.join('\n• ')}\n\nNote: Configure API keys in Settings for actual AI-powered transcription with real speaker identification and content analysis.`,
         actionItems: [
-            { item: "Review the full transcript for detailed content", assignee: "Team" },
-            { item: "Configure AI API keys for enhanced analysis", assignee: "Admin" }
+            { item: "Review the audio file manually for detailed content extraction", assignee: "Team" },
+            { item: "Add AI API keys for automated transcription and analysis", assignee: "Admin" }
         ],
         keyDecisions: [
-            { decision: "Meeting recorded successfully", rationale: "Audio processing completed without AI services" }
+            { decision: "Audio processed in offline demo mode", rationale: "No AI services configured - using pattern-based analysis" }
         ]
     };
 };
