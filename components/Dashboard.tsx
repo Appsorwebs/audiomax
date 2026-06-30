@@ -1,4 +1,4 @@
-import React, { useRef, ChangeEvent, useEffect, useState } from 'react';
+import React, { useRef, ChangeEvent } from 'react';
 import { Meeting, User } from '../types';
 import { PLAN_LIMITS } from '../constants';
 import { UploadIcon } from './icons/UploadIcon';
@@ -6,7 +6,6 @@ import { FileAudioIcon } from './icons/FileAudioIcon';
 import { RightArrowIcon } from './icons/RightArrowIcon';
 import { MicrophoneIcon } from './icons/MicrophoneIcon';
 import { SettingsIcon } from './icons/SettingsIcon';
-import { isLiveMode } from '../services/geminiService';
 
 interface DashboardProps {
   user: User;
@@ -50,12 +49,7 @@ const ActionCard: React.FC<{ onClick: () => void; icon: React.ReactNode; title: 
 const Dashboard: React.FC<DashboardProps> = ({ user, onFileSelect, onViewMeeting, onRecord, onUpgrade, onOpenSettings }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const meetings = user.meetings || [];
-  const [isLive, setIsLive] = useState(false);
      
-  useEffect(() => {
-    isLiveMode().then(setIsLive);
-  }, []);
-    
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -99,14 +93,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onFileSelect, onViewMeeting
           <div>
             <h2 className="text-4xl font-black gradient-text mb-2">Dashboard</h2>
             <p className="text-white/70 text-lg">Welcome back, <span className="font-semibold text-white">{user.email}</span>! 🎙️</p>
-            <div className="flex items-center mt-2">
-              <span className={`inline-flex items-center px-2 py-1 text-xs rounded-full ${
-                isLive ? 'bg-green-500/20 text-green-300' : 'bg-yellow-500/20 text-yellow-300'
-              }`}>
-                <span className={`w-2 h-2 rounded-full mr-1 ${isLive ? 'bg-green-400' : 'bg-yellow-400'}`}></span>
-                {isLive ? 'Live AI Mode' : 'Offline Mode'}
-              </span>
-            </div>
           </div>
           <button
             onClick={onOpenSettings}
