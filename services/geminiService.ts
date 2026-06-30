@@ -99,14 +99,15 @@ const tryBackendTranscription = async (
     user: User,
     onProgress: (message: string) => void
 ): Promise<TranscriptLine[] | null> => {
+    // Check if we should even try backend
+    const apiUrl = (import.meta as any).env?.VITE_API_URL;
+    if (!apiUrl) return null;
+    
     try {
         onProgress('Checking backend availability...');
         const isHealthy = await checkBackendHealth();
         
-        if (!isHealthy) {
-            console.log('Backend not available, using local mode');
-            return null;
-        }
+        if (!isHealthy) return null;
         
         const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
         const arrayBuffer = await audioFile.arrayBuffer();
@@ -170,9 +171,9 @@ const tryBackendTranscription = async (
         
         await audioContext.close();
         onProgress('Combining transcripts...');
-        return combinedTranscript;
+        return combinedTranscript.length > 0 ? combinedTranscript : null;
     } catch (error) {
-        console.warn('Backend transcription failed, falling back to local mode:', error);
+        console.warn('Backend transcription failed, using local mode:', error);
         return null;
     }
 };
@@ -197,7 +198,7 @@ export const transcribeAudio = async (
         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
         durationSeconds = audioBuffer.duration;
         await audioContext.close();
-    } catch (error) {
+    } catch {
         durationSeconds = 60;
     }
     
@@ -208,9 +209,14 @@ export const transcribeAudio = async (
     
     onProgress('Working in offline mode...');
     
-    const backendResult = await tryBackendTranscription(audioFile, user, onProgress);
-    if (backendResult && backendResult.length > 0) {
-        return backendResult;
+    // Try backend first (if configured), fallback to local
+    try {
+        const backendResult = await tryBackendTranscription(audioFile, user, onProgress);
+        if (backendResult && backendResult.length > 0) {
+            return backendResult;
+        }
+    } catch {
+        // Backend failed, use offline mode
     }
     
     onProgress('Generating local transcription...');
@@ -221,27 +227,8 @@ export const generateMeetingSummary = async (
     transcript: TranscriptLine[],
     user: User
 ): Promise<MagicSummary> => {
-    try {
-        const isHealthy = await checkBackendHealth();
-        if (isHealthy) {
-            const summary = await backendGenerateMeetingSummary(
-                transcript,
-                user?.email,
-                undefined,
-                undefined,
-                user?.settings?.apiKeys
-            );
-            if (summary && summary.executiveSummary) {
-                return summary;
-            }
-        }
-    } catch (error) {
-        console.warn('Backend summary failed, using local mode');
-    }
-    
-    // Use transcript length to estimate duration (segments * 30 seconds each)
+    // Use estimated duration from transcript
     const estimatedDuration = transcript.length * 30;
-    
     return generateLocalSummary(transcript, estimatedDuration);
 };
 
@@ -249,15 +236,7 @@ export const translateSummary = async (
     summary: MagicSummary,
     targetLanguage: string
 ): Promise<MagicSummary> => {
-    try {
-        const isHealthy = await checkBackendHealth();
-        if (isHealthy) {
-            return await backendTranslateSummary(summary, targetLanguage);
-        }
-    } catch (error) {
-        console.warn('Backend translation failed, using local mode');
-    }
-    
+    // Simple offline translation prefix
     return {
         executiveSummary: `[Translated to ${targetLanguage}] ${summary.executiveSummary}`,
         actionItems: summary.actionItems,
@@ -266,11 +245,15 @@ export const translateSummary = async (
 };
 
 export const isLiveMode = async (): Promise<boolean> => {
+    // If no API_URL configured, we're offline
+    const apiUrl = (import.meta as any).env?.VITE_API_URL;
+    if (!apiUrl) return false;
+    
     try {
         const isHealthy = await checkBackendHealth();
         if (!isHealthy) return false;
         
-        const response = await fetch(`${(import.meta as any).env?.VITE_API_URL || 'http://localhost:3001'}/api/health`);
+        const response = await fetch(`${apiUrl}/api/health`);
         const data = await response.json();
         return !data.offlineMode;
     } catch {
